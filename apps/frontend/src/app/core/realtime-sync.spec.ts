@@ -84,6 +84,37 @@ describe('application realtime synchronization', () => {
     expect(sync.lastChecked()).not.toBeNull();
   });
 
+  it('keeps waiting feedback until every outstanding menu resource finishes', () => {
+    finish(); const items = Symbol('items'); const categories = Symbol('categories');
+    sync.beginMenuRead(items); sync.beginMenuRead(categories);
+    sync.observe({ menuRevision: 1, menuUpdatedAt: '2026-10-18T10:00:00.000Z' });
+    sync.endMenuRead(categories); expect(sync.waitingForMenu()).toBe(true);
+    sync.endMenuRead(items); expect(sync.waitingForMenu()).toBe(false);
+  });
+
+  it('reacts immediately to browser offline/online and does not trust a late socket connect', () => {
+    finish(1, 0); socket.receive('connect'); finish(1, 0);
+    window.dispatchEvent(new Event('offline'));
+    expect(sync.connectionState()).toBe('disconnected'); expect(sync.error()?.message).toContain('Offline');
+    expect(socket.disconnects).toBe(1); socket.receive('connect');
+    expect(sync.connectionState()).toBe('disconnected'); sync.check(); http.expectNone('/api/sync');
+    window.dispatchEvent(new Event('online')); expect(sync.connectionState()).toBe('connecting');
+    finish(2, 0); socket.receive('connect'); finish(2, 0);
+    expect(sync.connectionState()).toBe('connected'); expect(sync.error()).toBeNull();
+  });
+
+  it('marks failed sync offline even while the socket is connected, and retains actual menu timestamps', () => {
+    finish(1, 0); socket.receive('connect');
+    http.expectOne('/api/sync').flush({ menuRevision: 1, ordersRevision: 0, menuUpdatedAt: '2026-10-18T10:00:00.000Z' });
+    expect(sync.menuUpdatedAt()).toBe('2026-10-18T10:00:00.000Z');
+    sync.check(); http.expectOne('/api/sync').error(new ProgressEvent('error'));
+    expect(sync.connectionState()).toBe('disconnected');
+    sync.check(); http.expectOne('/api/sync').flush({ menuRevision: 1, ordersRevision: 0, menuUpdatedAt: '2026-10-18T10:00:00.000Z' });
+    expect(sync.connectionState()).toBe('connected');
+    sync.observe({ menuRevision: 0, menuUpdatedAt: '2026-10-18T09:00:00.000Z' });
+    expect(sync.menuUpdatedAt()).toBe('2026-10-18T10:00:00.000Z');
+  });
+
   it('removes every owned listener/timer and cancels HTTP at application teardown', async () => {
     const focusRemoval = vi.spyOn(window, 'removeEventListener');
     const pending = http.expectOne('/api/sync');

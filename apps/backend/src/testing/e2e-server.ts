@@ -3,15 +3,16 @@ import { startServer } from '../server';
 
 /** Test entry point only; never imported by either production entry point. */
 async function main() {
-  const seedMode = process.argv.includes('--large') ? 'large' : 'none';
+  const seedMode = process.argv.includes('--large') ? 'large' : process.argv.includes('--small') ? 'small' : 'none';
   const omittedMenu = new Set<string>();
   const omittedOrders = new Set<string>();
   const suppressed: { stream: 'menu' | 'orders'; id: string }[] = [];
   const runtime = await startServer({
-    host: '127.0.0.1', port: 3000, databasePath: ':memory:', seedMode,
+    host: '127.0.0.1', port: Number(process.env['E2E_BACKEND_PORT'] ?? 3000), databasePath: ':memory:', seedMode,
     jsonBodyLimitBytes: 65_536, shutdownTimeoutMs: 10_000, socketRecoveryMs: 120_000
   }, {
     migrationsFolder: resolve('apps/backend/drizzle'),
+    imagesDirectory: resolve('apps/backend/src/assets/images'),
     registerRoutes: (app) => {
       app.post('/api/__e2e/omit', (request, response) => {
         const body = request.body as { menuId?: string; orderId?: string };

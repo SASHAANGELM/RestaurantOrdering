@@ -1,11 +1,11 @@
-import { DestroyRef, inject, Injectable, InjectionToken, signal } from '@angular/core';
+import { computed, DestroyRef, inject, Injectable, InjectionToken, signal } from '@angular/core';
 import { io, type Socket } from 'socket.io-client';
 import { type Subscription } from 'rxjs';
 import {
   menuChangedSchema, ordersChangedSchema, syncStateSchema,
   type ClientToServerEvents, type ServerToClientEvents, type SyncState
 } from '@restaurant-ordering/contracts';
-import { ApiClient, clientError, type ClientError } from './api-client';
+import { ApiClient, clientError, ClientError } from './api-client';
 
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 export const SOCKET_FACTORY = new InjectionToken<() => AppSocket>('Socket factory', {
@@ -20,7 +20,16 @@ export class RealtimeSync {
   private readonly revisions = signal<SyncState>({ menuRevision: 0, ordersRevision: 0 });
   readonly highest = this.revisions.asReadonly();
   private readonly connection = signal<'connecting' | 'connected' | 'disconnected'>('connecting');
-  readonly connectionState = this.connection.asReadonly();
+  private readonly online = signal(navigator.onLine);
+  readonly connectionState = computed(() => !this.online() || this.failure()?.kind === 'network' ? 'disconnected' : this.connection());
+  private readonly menuModified = signal<string | null>(null);
+  readonly menuUpdatedAt = this.menuModified.asReadonly();
+  private readonly menuWaiting = signal(false);
+  private readonly menuReads = new Set<symbol>();
+  private readonly menuReadCount = signal(0);
+  readonly waitingForMenu = computed(() => this.menuWaiting() || this.menuReadCount() > 0);
+  beginMenuRead(token: symbol) { this.menuReads.add(token); this.menuReadCount.set(this.menuReads.size); }
+  endMenuRead(token: symbol) { this.menuReads.delete(token); this.menuReadCount.set(this.menuReads.size); }
   private readonly checking = signal(false);
   readonly syncing = this.checking.asReadonly();
   private readonly failure = signal<ClientError | null>(null);
@@ -32,6 +41,8 @@ export class RealtimeSync {
   private pending?: Subscription;
 
   observe(state: Partial<SyncState>) {
+    if ((state.menuRevision ?? -1) > this.revisions().menuRevision && state.menuUpdatedAt === undefined) this.menuWaiting.set(true);
+    if (state.menuUpdatedAt !== undefined && (state.menuRevision ?? -1) >= this.revisions().menuRevision) { this.menuModified.set(state.menuUpdatedAt); this.menuWaiting.set(false); }
     this.revisions.update((current) => {
       const next = {
         menuRevision: Math.max(current.menuRevision, state.menuRevision ?? 0),
@@ -43,6 +54,7 @@ export class RealtimeSync {
 
   /** Read only. Reconciliation must never submit a user mutation. */
   check = () => {
+    if (!this.online() || !navigator.onLine) { this.wentOffline(); return; }
     if (this.checking()) return;
     this.checking.set(true);
     this.pending = this.api.sync().subscribe({
@@ -52,8 +64,16 @@ export class RealtimeSync {
     });
   };
 
+  private readonly wentOffline = () => {
+    this.online.set(false); this.connection.set('disconnected');
+    this.pending?.unsubscribe(); this.checking.set(false);
+    this.failure.set(new ClientError('Offline. Displayed content is retained.', 'network'));
+    this.socket.disconnect();
+  };
+  private readonly wentOnline = () => { this.online.set(true); this.failure.set(null); this.connection.set('connecting'); this.socket.connect(); this.check(); };
+
   constructor() {
-    const connected = () => { this.connection.set('connected'); this.check(); };
+    const connected = () => { if (this.online()) { this.connection.set('connected'); this.check(); } };
     const disconnected = () => this.connection.set('disconnected');
     const sync = (payload: unknown) => {
       const result = syncStateSchema.safeParse(payload);
@@ -77,10 +97,14 @@ export class RealtimeSync {
     this.socket.on('menu.changed', menu);
     this.socket.on('orders.changed', orders);
     window.addEventListener('focus', this.check);
+    window.addEventListener('offline', this.wentOffline);
+    window.addEventListener('online', this.wentOnline);
     const timer = window.setInterval(this.check, 15_000);
     inject(DestroyRef).onDestroy(() => {
       window.clearInterval(timer);
       window.removeEventListener('focus', this.check);
+      window.removeEventListener('offline', this.wentOffline);
+      window.removeEventListener('online', this.wentOnline);
       this.pending?.unsubscribe();
       this.socket.off('connect', connected);
       this.socket.off('disconnect', disconnected);
@@ -90,7 +114,8 @@ export class RealtimeSync {
       this.socket.off('orders.changed', orders);
       this.socket.disconnect();
     });
-    this.socket.connect();
+    if (this.online()) this.socket.connect();
+    else this.wentOffline();
     this.check();
   }
 }

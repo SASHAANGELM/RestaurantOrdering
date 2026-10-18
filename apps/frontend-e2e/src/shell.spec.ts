@@ -56,7 +56,8 @@ test('real Angular stores update in a second context and retain content through 
   try {
     await Promise.all([page.goto('/menu'), second.goto('/menu')]);
     for (const client of [page, second]) {
-      await expect(client.getByText(item.name, { exact: true })).toBeVisible();
+      await client.getByRole('textbox', { name: 'Search menu', exact: true }).fill(item.name);
+      await expect(client.getByRole('list', { name: 'Menu results' }).getByText(item.name, { exact: true })).toBeVisible();
       await expect(client.getByRole('button', { name: 'Connection details' })).toContainText('Connected');
     }
     const name = `Updated ${item.name}`;

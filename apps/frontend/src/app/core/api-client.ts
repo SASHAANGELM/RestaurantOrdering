@@ -62,7 +62,7 @@ export class ApiClient {
   }
 
   sync() { return this.request('GET', '/sync', syncStateSchema); }
-  categories() { return this.request('GET', '/menu/categories', categoriesResponseSchema); }
+  categories(search = '') { return this.request('GET', '/menu/categories', categoriesResponseSchema, { params: search ? { search } : {} }); }
   setupCategories(includeArchived = false) {
     return this.send(() => this.request('GET', '/setup/categories', categoriesResponseSchema,
       { params: setupCategoriesQuerySchema.parse({ includeArchived }) }));

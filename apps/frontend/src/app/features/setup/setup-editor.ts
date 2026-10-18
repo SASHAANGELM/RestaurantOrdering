@@ -29,12 +29,13 @@ export interface SetupEditorData {
   styles: [`
     form { display: grid; gap: .75rem; padding-top: .5rem; }
     mat-form-field { width: 100%; }
+    .archive-button { margin-right: auto; color: #923e2a; }
     .error-panel { overflow-wrap: anywhere; }
   `],
   template: `
     <h2 mat-dialog-title id="setup-editor-title">{{ title }}</h2>
     <mat-dialog-content>
-      @if (data.archive) {
+      @if (archiving()) {
         <p>Archive <strong>{{ entity()?.name }}</strong>?</p>
         @if (data.kind === 'category') {
           <p>All active items in this category will disappear from Menu and cannot be ordered, including from existing carts. Their records are retained.</p>
@@ -44,23 +45,24 @@ export interface SetupEditorData {
         <p>Existing orders keep their original details. Archival cannot be undone in this prototype.</p>
       } @else {
         <form id="setup-form" [formGroup]="form" (ngSubmit)="save()">
-          <mat-form-field><mat-label>Name</mat-label><input matInput formControlName="name" maxlength="120" required /></mat-form-field>
+          <mat-form-field><mat-label><i class="ti ti-tag" aria-hidden="true"></i> Name</mat-label><input matInput formControlName="name" maxlength="120" required /></mat-form-field>
           @if (data.kind === 'category') {
-            <mat-form-field><mat-label>Sort order</mat-label><input matInput type="number" formControlName="sortOrder" step="1" required /></mat-form-field>
+            <mat-form-field><mat-label><i class="ti ti-arrows-sort" aria-hidden="true"></i> Sort order</mat-label><input matInput type="number" formControlName="sortOrder" step="1" required /></mat-form-field>
           } @else {
-            <mat-form-field><mat-label>Category</mat-label>
+            <mat-form-field><mat-label><i class="ti ti-category" aria-hidden="true"></i> Category</mat-label>
               <mat-select formControlName="categoryId" required>
                 @for (category of categories(); track category.id) {
                   <mat-option [value]="category.id" [disabled]="category.archivedAt !== null">{{ category.name }}{{ category.archivedAt ? ' (archived)' : '' }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
-            <mat-form-field><mat-label>Description</mat-label><textarea matInput formControlName="description" maxlength="2000" rows="3"></textarea></mat-form-field>
-            <mat-form-field><mat-label>Pricing</mat-label>
+            <mat-form-field><mat-label><i class="ti ti-align-left" aria-hidden="true"></i> Description</mat-label><textarea matInput formControlName="description" maxlength="2000" rows="3"></textarea></mat-form-field>
+            <mat-form-field><mat-label><i class="ti ti-photo" aria-hidden="true"></i> Image URL</mat-label><input matInput formControlName="imageUrl" maxlength="2048" /><mat-hint>A backend /api/images/ path or an HTTPS image URL</mat-hint></mat-form-field>
+            <mat-form-field><mat-label><i class="ti ti-coin" aria-hidden="true"></i> Pricing</mat-label>
               <mat-select formControlName="pricingMode"><mat-option value="fixed">Fixed price</mat-option><mat-option value="open">Open price</mat-option></mat-select>
             </mat-form-field>
             @if (form.controls.pricingMode.value === 'fixed') {
-              <mat-form-field><mat-label>Price (USD)</mat-label><input matInput formControlName="price" inputmode="decimal" required />
+              <mat-form-field><mat-label><i class="ti ti-currency-dollar" aria-hidden="true"></i> Price (USD)</mat-label><input matInput formControlName="price" inputmode="decimal" required />
                 <mat-hint>0.00–10,000.00, up to two decimal places</mat-hint></mat-form-field>
             } @else { <p>A price is entered when ordering. No fixed price will be saved.</p> }
             <mat-checkbox formControlName="available">Available for ordering</mat-checkbox>
@@ -75,10 +77,11 @@ export interface SetupEditorData {
       @if (entity()?.archivedAt) { <p role="status">This record is archived. Close this dialog to continue.</p> }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button [disabled]="busy()" (click)="dialog.close()">Cancel</button>
-      @if (data.archive) {
+      <button mat-button [disabled]="busy()" (click)="dialog.close()"><i class="ti ti-x" aria-hidden="true"></i> Cancel</button>
+      @if (archiving()) {
         <button mat-flat-button [disabled]="busy() || !!entity()?.archivedAt || conflict()" (click)="save()">{{ busy() ? 'Archiving…' : 'Archive' }}</button>
       } @else {
+        @if (entity() && !entity()?.archivedAt) { <button mat-button class="archive-button" [disabled]="busy() || conflict()" (click)="beginArchive()">Archive {{ data.kind }}</button> }
         <button mat-flat-button type="submit" form="setup-form" [disabled]="busy() || !!entity()?.archivedAt || conflict()">{{ busy() ? 'Saving…' : 'Save' }}</button>
       }
     </mat-dialog-actions>
@@ -95,12 +98,15 @@ export class SetupEditor {
   readonly busy = signal(false);
   readonly error = signal<ClientError | null>(null);
   readonly message = signal('');
-  readonly title = `${this.data.archive ? 'Archive' : this.data.entity ? 'Edit' : 'Add'} ${this.data.kind}`;
+  readonly archiving = signal(this.data.archive ?? false);
+  get title() { return `${this.archiving() ? 'Archive' : this.data.entity ? 'Edit' : 'Add'} ${this.data.kind}`; }
+  beginArchive() { if (!this.busy() && this.entity() && !this.entity()?.archivedAt) { this.archiving.set(true); this.message.set(''); } }
   readonly form = new FormGroup({
     name: new FormControl('', { nonNullable: true }),
     sortOrder: new FormControl<number | null>(0),
     categoryId: new FormControl('', { nonNullable: true }),
     description: new FormControl('', { nonNullable: true }),
+    imageUrl: new FormControl('', { nonNullable: true }),
     pricingMode: new FormControl<'fixed' | 'open'>('fixed', { nonNullable: true }),
     price: new FormControl('', { nonNullable: true }),
     available: new FormControl(true, { nonNullable: true })
@@ -113,6 +119,7 @@ export class SetupEditor {
   private fill(entity?: Category | MenuItem) {
     this.form.reset({ name: entity?.name ?? '', sortOrder: entity && 'sortOrder' in entity ? entity.sortOrder : 0,
       categoryId: entity && 'categoryId' in entity ? entity.categoryId : '',
+      imageUrl: entity && 'categoryId' in entity ? entity.imageUrl ?? '' : '',
       description: entity && 'categoryId' in entity ? entity.description ?? '' : '',
       pricingMode: entity && 'categoryId' in entity ? entity.pricingMode : 'fixed',
       price: entity && 'categoryId' in entity && entity.pricingMode === 'fixed' ? (entity.priceMinor / 100).toFixed(2) : '',
@@ -139,7 +146,7 @@ export class SetupEditor {
     if (this.busy() || this.entity()?.archivedAt || this.conflict()) return;
     this.error.set(null); this.message.set('');
     const entity = this.entity();
-    if (this.data.archive && entity) {
+    if (this.archiving() && entity) {
       const body = { expectedRevision: entity.revision, archived: true as const };
       this.run(this.data.kind === 'category'
         ? this.api.updateCategory(entity.id, body).pipe(map((r) => r.menuRevision))
@@ -160,12 +167,13 @@ export class SetupEditor {
       }
       const result = createItemSchema.safeParse({ name: value.name, categoryId: value.categoryId,
         description: value.description, available: value.available,
+        ...(value.imageUrl.trim() ? { imageUrl: value.imageUrl.trim() } : {}),
         ...(value.pricingMode === 'open' ? { pricingMode: 'open' } : { pricingMode: 'fixed', priceMinor: price.data }) });
       if (!result.success || !this.categories().some((c) => c.id === value.categoryId && c.archivedAt === null)) {
-        this.message.set('Enter a name of 1–120 characters, a description up to 2,000 characters, and choose an active category. Your input is retained.'); return;
+        this.message.set('Enter a name of 1–120 characters, a description up to 2,000 characters, and choose an active category and a valid image URL. Your input is retained.'); return;
       }
       this.run(entity
-        ? this.api.updateItem(entity.id, { ...result.data, expectedRevision: entity.revision }).pipe(map((r) => r.menuRevision))
+        ? this.api.updateItem(entity.id, { ...result.data, ...(value.imageUrl.trim() ? {} : { imageUrl: null }), expectedRevision: entity.revision }).pipe(map((r) => r.menuRevision))
         : this.api.createItem(result.data).pipe(map((r) => r.menuRevision)));
     }
   }

@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MenuItemsQuery } from '@restaurant-ordering/contracts';
+import { CheckoutStore } from '../checkout/checkout.store';
 import { CartStore } from './cart.store';
 import { MenuPage } from './menu.page';
 import { MenuStore } from './menu.store';
@@ -12,7 +13,7 @@ describe('menu filter timing', () => {
     const query = signal<MenuItemsQuery>({ page: 4, pageSize: 25 });
     const setQuery = vi.fn((next: MenuItemsQuery) => query.set(next));
     TestBed.configureTestingModule({ providers: [
-      { provide: MenuStore, useValue: { query, setQuery } }, { provide: CartStore, useValue: {} }
+      { provide: MenuStore, useValue: { query, setQuery } }, { provide: CartStore, useValue: {} }, { provide: CheckoutStore, useValue: {} }
     ] });
     return { page: TestBed.runInInjectionContext(() => new MenuPage()), setQuery, query };
   }

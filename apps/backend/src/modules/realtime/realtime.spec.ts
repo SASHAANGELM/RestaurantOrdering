@@ -118,7 +118,7 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
     const [first, second] = await Promise.all([connect(['polling']), connect(['websocket'])]);
     expect(first.socket.io.engine.transport.name).toBe('polling');
     expect(second.socket.io.engine.transport.name).toBe('websocket');
-    expect(first.seen.states).toEqual([{ menuRevision: 0, ordersRevision: 0 }]);
+    expect(first.seen.states).toEqual([{ menuRevision: 0, ordersRevision: 0, menuUpdatedAt: null }]);
     expect(second.seen.states).toEqual(first.seen.states);
     expect(await sync()).toEqual(first.seen.states[0]);
     const handshake = await fetch(`${url()}/socket.io/?EIO=4&transport=polling`, {
@@ -169,14 +169,14 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
       first.seen.menus.forEach((event, index) => {
         expect(menuChangedSchema.parse(event)).toEqual(event);
         expect(event.menuRevision).toBe(index + 1);
-        expect(committed[index]).toEqual({ menuRevision: index + 1, ordersRevision: 0 });
+        expect(committed[index]).toMatchObject({ menuRevision: index + 1, ordersRevision: 0 });
       });
       expect(first.seen.menus.map(({ entityType, change }) => [entityType, change])).toEqual([
         ['category', 'created'], ['item', 'created'], ['category', 'updated'],
         ['item', 'updated'], ['item', 'archived'], ['category', 'archived']
       ]);
       expect(new Set(first.seen.menus.map(({ eventId }) => eventId)).size).toBe(6);
-      expect(await sync()).toEqual({ menuRevision: 6, ordersRevision: 0 });
+      expect(await sync()).toMatchObject({ menuRevision: 6, ordersRevision: 0 });
     } finally { inspection.close(); }
   });
 
@@ -204,7 +204,7 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
         { eventId: expect.any(String), ordersRevision: 2, orderId: order.id, orderRevision: 2, change: 'status-changed' }
       ]);
       expect(committed).toEqual([{ status: 'placed', revision: 1 }, { status: 'preparing', revision: 2 }]);
-      expect(await sync()).toEqual({ menuRevision: 2, ordersRevision: 2 });
+      expect(await sync()).toMatchObject({ menuRevision: 2, ordersRevision: 2 });
       const detail = orderResponseSchema.parse(await (await request(`/orders/${order.id}`)).json());
       expect(detail.order.status).toBe('preparing');
       expect(detail.order.lines).toEqual(order.lines);
@@ -231,7 +231,7 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
     });
     expect(first.seen.orders).toEqual([]);
     expect(second.seen.orders).toEqual([]);
-    expect(await sync()).toEqual({ menuRevision: 3, ordersRevision: 1 });
+    expect(await sync()).toMatchObject({ menuRevision: 3, ordersRevision: 1 });
   });
 
   it.each(['menu', 'create-order', 'status', 'commit'] as const)('rolls back a failed %s transaction without any notification', async (operation) => {
@@ -342,7 +342,7 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
     socket.connect();
     await vi.waitFor(() => expect(seen.states).toHaveLength(2));
     expect(socket.recovered).toBe(false);
-    expect(seen.states[1]).toEqual({ menuRevision: 3, ordersRevision: 2 });
+    expect(seen.states[1]).toMatchObject({ menuRevision: 3, ordersRevision: 2 });
     expect(await sync()).toEqual(seen.states[1]);
     const detail = orderResponseSchema.parse(await (await request(`/orders/${order.id}`)).json());
     expect(detail.order.status).toBe('preparing');
@@ -359,7 +359,7 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
     expect(socket.recovered).toBe(true);
     expect(socket.id).toBe(id);
     expect(seen.menus).toHaveLength(1);
-    expect(seen.states[1]).toEqual({ menuRevision: 1, ordersRevision: 0 });
+    expect(seen.states[1]).toMatchObject({ menuRevision: 1, ordersRevision: 0 });
   });
 
   it.each([0, 1])('resynchronizes when connection recovery is disabled or has expired (%s ms)', async (socketRecoveryMs) => {
@@ -373,7 +373,7 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
     socket.connect();
     await vi.waitFor(() => expect(seen.states).toHaveLength(2));
     expect(socket.recovered).not.toBe(true);
-    expect(seen.states[1]).toEqual({ menuRevision: 1, ordersRevision: 0 });
+    expect(seen.states[1]).toMatchObject({ menuRevision: 1, ordersRevision: 0 });
     expect(await sync()).toEqual(seen.states[1]);
   });
 
@@ -386,7 +386,7 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
     untyped.emit('menu.changed', { menuRevision: 999 });
     await category('HTTP barrier');
     await vi.waitFor(() => expect(seen.menus).toHaveLength(1));
-    expect(await sync()).toEqual({ menuRevision: 1, ordersRevision: 0 });
+    expect(await sync()).toMatchObject({ menuRevision: 1, ordersRevision: 0 });
     expect(runtime.connection.sqlite.prepare('SELECT name FROM categories').all()).toEqual([{ name: 'HTTP barrier' }]);
     expect(seen.orders).toEqual([]);
   });

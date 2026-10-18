@@ -15,10 +15,10 @@ const item: MenuItem = { id: '22222222-2222-4222-8222-222222222222', categoryId:
 
 describe('open-price dialog', () => {
   let http: HttpTestingController;
-  function setup() {
+  function setup(menuItem: MenuItem = item) {
     const close = vi.fn();
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
-      { provide: MAT_DIALOG_DATA, useValue: { item, quantity: '2' } }, { provide: MatDialogRef, useValue: { close } },
+      { provide: MAT_DIALOG_DATA, useValue: { item: menuItem, quantity: '2' } }, { provide: MatDialogRef, useValue: { close } },
       { provide: CART_STORAGE, useValue: () => ({ getItem: () => null, setItem: () => undefined }) },
       { provide: RealtimeSync, useValue: { highest: signal({ menuRevision: 0, ordersRevision: 0 }), successfulChecks: signal(0), observe: vi.fn() } }] });
     http = TestBed.inject(HttpTestingController);
@@ -26,6 +26,30 @@ describe('open-price dialog', () => {
     return { fixture, dialog: fixture.componentInstance, close, cart: TestBed.inject(CartStore) };
   }
   afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
+
+  it('uses quantity-only editing for fixed dishes and restores an existing line when reopened', () => {
+    const fixed: MenuItem = { ...item, pricingMode: 'fixed', priceMinor: 750 };
+    const { dialog, fixture, cart } = setup(fixed);
+    expect(fixture.nativeElement.textContent).not.toContain('Unit price (USD)');
+    dialog.quantity.setValue('3'); dialog.add(); TestBed.tick();
+    http.expectOne('/api/menu/resolve').error(new ProgressEvent('error'));
+    const reopened = TestBed.createComponent(OpenPriceDialog); reopened.detectChanges();
+    expect(reopened.componentInstance.quantity.value).toBe('3');
+    reopened.componentInstance.quantity.setValue('5'); reopened.componentInstance.add();
+    expect(cart.lines()).toHaveLength(1); expect(cart.lines()[0]?.quantityText).toBe('5');
+    reopened.componentInstance.remove(); expect(cart.lines()).toEqual([]);
+  });
+
+  it('can create distinct open-price lines and select their quantities for editing', () => {
+    const { dialog, cart } = setup(); dialog.price.setValue('1.00'); dialog.add(); TestBed.tick();
+    http.expectOne('/api/menu/resolve').error(new ProgressEvent('error'));
+    const reopened = TestBed.createComponent(OpenPriceDialog); reopened.detectChanges();
+    expect(reopened.componentInstance.price.value).toBe('1.00'); expect(reopened.componentInstance.quantity.value).toBe('2');
+    reopened.componentInstance.select(''); reopened.componentInstance.price.setValue('2.00'); reopened.componentInstance.quantity.setValue('3'); reopened.componentInstance.add();
+    expect(cart.lines()).toHaveLength(2); reopened.componentInstance.select(cart.lines()[0]!.id);
+    expect(reopened.componentInstance.quantity.value).toBe('2'); reopened.componentInstance.remove();
+    expect(cart.lines()).toHaveLength(1); expect(cart.lines()[0]?.priceText).toBe('2.00');
+  });
 
   it('shows labelled price/quantity fields and keeps invalid input for correction', () => {
     const { fixture, dialog, close, cart } = setup();

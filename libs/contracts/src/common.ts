@@ -8,7 +8,7 @@ export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 100;
 export const QUOTE_LIFETIME_MS = 5 * 60 * 1_000;
 
-export const idSchema = z.uuid();
+export const idSchema = z.uuid({ version: 'v4' });
 export const timestampSchema = z.iso.datetime();
 export const revisionSchema = z.int().nonnegative();
 export const entityRevisionSchema = revisionSchema.min(1);
@@ -38,6 +38,7 @@ export const paginationShape = {
 export const paginationSchema = z.strictObject(paginationShape);
 export const syncStateSchema = z.strictObject({
   menuRevision: revisionSchema,
+  menuUpdatedAt: timestampSchema.nullable().optional(),
   ordersRevision: revisionSchema
 });
 

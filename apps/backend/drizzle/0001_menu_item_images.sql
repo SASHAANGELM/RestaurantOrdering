@@ -1,0 +1,1 @@
+ALTER TABLE `menu_items` ADD `image_url` text;

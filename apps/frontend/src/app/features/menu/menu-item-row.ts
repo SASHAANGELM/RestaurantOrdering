@@ -1,6 +1,5 @@
 import { CurrencyPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import type { MenuItem } from '@restaurant-ordering/contracts';
@@ -9,37 +8,35 @@ import { OpenPriceDialog } from './open-price-dialog';
 
 @Component({
   selector: 'app-menu-item-row',
-  imports: [CurrencyPipe, ReactiveFormsModule, MatButton], changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CurrencyPipe, MatButton], changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <img class="dish-image" [src]="displayImage()" [alt]="item().name" width="640" height="420" loading="lazy" decoding="async" (error)="imageFailedFor.set(imageUrl())" />
     <div class="item-copy"><strong>{{ item().name }}</strong><p class="muted description">{{ item().description }}</p>
       <span>{{ item().pricingMode === 'open' ? 'Open price' : ((item().priceMinor ?? 0) / 100 | currency) }}</span>
       @if (!item().available) { <span class="unavailable">Unavailable</span> }</div>
-    <div class="actions"><label [for]="'quantity-' + item().id">Quantity</label>
-      <input [id]="'quantity-' + item().id" [attr.aria-label]="'Quantity for ' + item().name" inputmode="numeric" maxlength="2" [formControl]="quantity" />
-      <button mat-stroked-button [disabled]="!item().available || cart.checkoutLocked()" [attr.aria-label]="'Add ' + item().name + ' to cart'" (click)="add()">Add</button></div>
-    @if (message()) { <p class="feedback" role="status">{{ message() }}</p> }
+    <div class="actions"><button mat-flat-button class="add-button" [disabled]="(!item().available && !inCart()) || cart.checkoutLocked()" [attr.aria-label]="'Add ' + item().name + ' to cart'" (click)="add()"><i class="ti ti-shopping-cart-plus" aria-hidden="true"></i>{{ inCart() ? 'Edit in cart' : 'Add' }}</button></div>
   `,
   styles: [`
-    :host { display: flex; width: 100%; min-width: 0; align-items: center; flex-wrap: wrap; gap: 1rem; }
-    .item-copy { flex: 1 1 12rem; min-width: 0; } strong { overflow-wrap: anywhere; }
-    .description { margin: .25rem 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .actions { display: flex; align-items: center; gap: .5rem; } input { width: 3.5rem; padding: .65rem .4rem; font: inherit; }
-    .unavailable { margin-left: 1rem; color: #923e2a; } .feedback { flex-basis: 100%; margin: 0; }
+    :host { display: flex; flex-direction: column; height: 100%; min-width: 0; }
+    :host(.unavailable-card) .dish-image, :host(.unavailable-card) .item-copy { opacity: .5; }
+    .dish-image { width: 100%; height: 10rem; flex-shrink: 0; object-fit: cover; background: #edf3f7; }
+    .item-copy { padding: 1rem 1rem .5rem; min-width: 0; flex: 1; } strong { overflow-wrap: anywhere; display: block; line-height: 1.35; }
+    .description { font-size: .8rem; margin: .4rem 0 .65rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .actions { padding: .5rem 1rem 1rem; } .add-button { width: 100%; }
+    .unavailable { display: block; font-size: .75rem; color: #923e2a; margin-top: .25rem; }
+    .feedback { font-size: .75rem; margin: 0; padding: 0 1rem .5rem; }
   `]
 })
 export class MenuItemRow {
   readonly item = input.required<MenuItem>();
   readonly cart = inject(CartStore);
   private readonly dialog = inject(MatDialog);
-  readonly quantity = new FormControl('1', { nonNullable: true });
-  readonly message = signal<string | null>(null);
+  readonly imageFailedFor = signal<string | null>(null);
+  readonly imageUrl = computed(() => (this.item().imageUrl || '/api/images/salad.jpg').replace(/^\/images\//, '/api/images/'));
+  readonly displayImage = computed(() => this.imageFailedFor() === this.imageUrl() ? '/api/images/salad.jpg' : this.imageUrl());
+  readonly inCart = computed(() => this.cart.lines().some((line) => line.item.id === this.item().id));
   add() {
-    if (this.item().pricingMode === 'open') {
-      this.dialog.open(OpenPriceDialog, { data: { item: this.item(), quantity: this.quantity.value },
-        ariaLabelledBy: 'open-price-title', width: '28rem', maxWidth: 'calc(100vw - 2rem)', restoreFocus: true, autoFocus: 'first-tabbable' });
-    } else {
-      const error = this.cart.add(this.item(), this.quantity.value);
-      this.message.set(error ?? 'Added to cart.');
-    }
+    this.dialog.open(OpenPriceDialog, { data: { item: this.item() }, ariaLabelledBy: 'open-price-title', width: '30rem',
+      maxWidth: 'calc(100vw - 2rem)', restoreFocus: true, autoFocus: 'first-tabbable' });
   }
 }

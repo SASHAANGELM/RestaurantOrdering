@@ -18,8 +18,8 @@ import { RealtimeSync } from '../core/realtime-sync';
       <p role="status">{{ sync.syncing() ? 'Checking for updates…' : sync.error()?.message }}</p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button (click)="sync.check()" [disabled]="sync.syncing()">Check for updates</button>
-      <button mat-flat-button mat-dialog-close>Close</button>
+      <button mat-button (click)="sync.check()" [disabled]="sync.syncing()"><i class="ti ti-refresh" aria-hidden="true"></i> Check for updates</button>
+      <button mat-flat-button mat-dialog-close><i class="ti ti-x" aria-hidden="true"></i> Close</button>
     </mat-dialog-actions>
   `
 })

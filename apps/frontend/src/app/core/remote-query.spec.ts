@@ -31,10 +31,10 @@ describe('feature query and revision ordering', () => {
     sync = TestBed.inject(RealtimeSync);
     http.expectOne('/api/sync').flush({ menuRevision: 1, ordersRevision: 0 });
   });
-  afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
+  afterEach(() => { try { http.verify(); } finally { TestBed.resetTestingModule(); } });
   function items() { return http.expectOne((request) => request.url === '/api/menu/items'); }
   function categories(revision = 1) {
-    http.expectOne('/api/menu/categories').flush({ categories: [], menuRevision: revision });
+    http.expectOne((request) => request.url === '/api/menu/categories').flush({ categories: [], menuRevision: revision });
   }
   function loadedMenu() {
     const store = TestBed.inject(MenuStore);
@@ -45,9 +45,9 @@ describe('feature query and revision ordering', () => {
   it('cancels superseded queries and retains the previous data until the new page succeeds', () => {
     const store = loadedMenu();
     store.setQuery({ page: 1, pageSize: 50, search: 'a' }); TestBed.tick();
-    const older = items();
+    const older = items(); const olderCategories = http.expectOne((request) => request.url === '/api/menu/categories');
     store.setQuery({ page: 1, pageSize: 50, search: 'b' }); TestBed.tick();
-    expect(older.cancelled).toBe(true);
+    expect(older.cancelled).toBe(true); expect(olderCategories.cancelled).toBe(true); categories();
     expect(store.items.data()?.items[0]?.name).toBe('Soup');
     expect(store.items.stale()).toBe(true);
     const latest = items();
@@ -64,7 +64,7 @@ describe('feature query and revision ordering', () => {
     store.setQuery({ page: 1, pageSize: 50, search: 'bread' });
     old.flush(page(1, 'Obsolete'));
     expect(store.items.data()).toBeNull();
-    TestBed.tick(); items().flush(page(1, 'Bread')); TestBed.tick();
+    TestBed.tick(); categories(); items().flush(page(1, 'Bread')); TestBed.tick();
     expect(store.items.data()?.items[0]?.name).toBe('Bread');
   });
 

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
-  createCategorySchema, createItemSchema, idSchema, menuItemsQuerySchema, resolveItemsRequestSchema,
+  createCategorySchema, createItemSchema, idSchema, menuCategoriesQuerySchema, menuItemsQuerySchema, resolveItemsRequestSchema,
   setupCategoriesQuerySchema, setupItemsQuerySchema, updateCategorySchema, updateItemSchema
 } from '@restaurant-ordering/contracts';
 import type { DatabaseConnection } from '../../db/connection';
@@ -11,15 +11,14 @@ import { createMenuService } from './service';
 import type { Notifications } from '../realtime/server';
 
 const idParamsSchema = z.strictObject({ id: idSchema });
-const emptyQuerySchema = z.strictObject({});
 
 export function createMenuRouter(connection: DatabaseConnection, notifications?: Notifications) {
   const router = Router();
   const service = createMenuService(connection);
   router.use((_request, response, next) => { response.setHeader('Cache-Control', 'no-store'); next(); });
   router.get('/menu/categories', (request, response) => {
-    validateRequest(emptyQuerySchema, request.query, 'query');
-    response.json(listCategories(connection));
+    const query = validateRequest(menuCategoriesQuerySchema, request.query, 'query');
+    response.json(listCategories(connection, false, query.search ?? ''));
   });
   router.get('/setup/categories', (request, response) => {
     const query = validateRequest(setupCategoriesQuerySchema, request.query, 'query');

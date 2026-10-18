@@ -23,11 +23,11 @@ export const STATUS_ACTION_LABELS: Record<OrderStatus, string> = {
     dd { margin: 0; text-align: right; } .total { font-weight: 700; }
   `],
   template: `
-    <a mat-button routerLink="/orders">Back to orders</a>
-    <div class="page-heading"><h1 tabindex="-1">Order details</h1><button mat-stroked-button (click)="store.reload()">Refresh order</button></div>
+    <a mat-button routerLink="/orders"><i class="ti ti-arrow-left" aria-hidden="true"></i> Back to orders</a>
+    <div class="page-heading"><h1 tabindex="-1">Order details</h1><button mat-stroked-button (click)="store.reload()"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh order</button></div>
     <app-load-state [loading]="store.detail.loading()" [stale]="store.detail.stale()" [error]="store.detail.error()" (retry)="store.reload()" />
     @if (store.current(); as order) {
-      <p class="muted order-id">{{ order.id }}</p><p role="status">Status: {{ order.status | titlecase }}</p>
+      <p class="muted order-id">{{ order.id }}</p><p role="status" [class]="'status-badge status-' + order.status">Status: {{ order.status | titlecase }}</p>
       <p class="muted">Placed {{ order.createdAt | date:'medium' }} · Updated {{ order.updatedAt | date:'medium' }}</p>
       <section aria-labelledby="order-actions"><h2 id="order-actions">Kitchen status</h2>
         <div class="actions">@for (status of store.transitions(); track status) {
@@ -45,7 +45,7 @@ export const STATUS_ACTION_LABELS: Record<OrderStatus, string> = {
             @if (error.body; as body) { <p class="muted">Request reference: {{ body.requestId }}</p> }
             @if (store.needsRefresh()) {
               <p>Refresh the order before choosing another action.</p>
-              <button mat-stroked-button [disabled]="store.detail.loading()" (click)="store.reload()">Refresh latest status</button>
+              <button mat-stroked-button [disabled]="store.detail.loading()" (click)="store.reload()"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh latest status</button>
             } @else { <p>The latest status is shown. Review it before choosing another action.</p> }
           </div>
         }

@@ -28,7 +28,7 @@ test('Setup forms publish live changes, omit fixed prices for open pricing, and 
   const customerContext = await browser.newContext({ baseURL });
   const customer = await customerContext.newPage();
   try {
-    await Promise.all([page.goto('/setup'), customer.goto('/menu')]);
+    await Promise.all([page.goto('/setup/categories'), customer.goto('/menu')]);
     await page.getByRole('button', { name: 'Add category', exact: true }).click();
     let dialog = page.getByRole('dialog', { name: 'Add category', exact: true });
     await expect(dialog.getByRole('textbox', { name: 'Name', exact: true })).toBeFocused();
@@ -36,6 +36,7 @@ test('Setup forms publish live changes, omit fixed prices for open pricing, and 
     await dialog.getByRole('spinbutton', { name: 'Sort order' }).fill('-1000');
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(dialog).not.toBeVisible();
+    await page.getByRole('link', { name: 'Items', exact: true }).click();
     await page.getByRole('button', { name: 'Add item', exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Add item', exact: true });
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(itemName);
@@ -73,15 +74,18 @@ test('Setup forms publish live changes, omit fixed prices for open pricing, and 
     await expect(customerRow).not.toContainText('Unavailable');
 
     // Escape cancels archival and restores focus to the labelled trigger.
-    const archive = page.getByRole('button', { name: `Archive item ${itemName}`, exact: true });
-    await archive.click();
+    await expect(page.getByRole('button', { name: 'Archive item', exact: true })).toHaveCount(0);
+    const archive = edit;
+    await edit.click();
+    await page.getByRole('button', { name: 'Archive item', exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Archive item', exact: true });
     await expect(dialog).toContainText('cannot be ordered');
     await page.keyboard.press('Escape');
     await expect(dialog).not.toBeVisible();
     await expect(archive).toBeFocused();
     await expect(customerRow).toBeVisible();
-    await archive.click();
+    await edit.click();
+    await page.getByRole('button', { name: 'Archive item', exact: true }).click();
     await dialog.getByRole('button', { name: 'Archive', exact: true }).click();
     await expect(customerRow).not.toBeVisible();
     const archivedQuote = await request.post('/api/checkout/quotes', {
@@ -100,11 +104,13 @@ test('Setup forms publish live changes, omit fixed prices for open pricing, and 
     })).json()).item;
     customerRow = customer.getByRole('listitem').filter({ hasText: childName });
     await expect(customerRow).toBeVisible();
+    await page.getByRole('link', { name: 'Categories', exact: true }).click();
     await page.getByRole('button', { name: `Edit category ${categoryName}`, exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Edit category', exact: true });
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(`Renamed ${categoryName}`);
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
-    await page.getByRole('button', { name: `Archive category Renamed ${categoryName}`, exact: true }).click();
+    await page.getByRole('button', { name: `Edit category Renamed ${categoryName}`, exact: true }).click();
+    await page.getByRole('button', { name: 'Archive category', exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Archive category', exact: true });
     await expect(dialog).toContainText('All active items in this category');
     await expect(dialog).toContainText('Existing orders keep their original details');
@@ -124,7 +130,7 @@ test('concurrent editors retain input, require revision recovery, and preserve d
   const second = await secondContext.newPage();
   try {
     for (const client of [page, second]) {
-      await client.goto('/setup'); await filter(client, name);
+      await client.goto('/setup/items'); await filter(client, name);
       await client.getByRole('button', { name: `Edit item ${name}`, exact: true }).click();
     }
     const firstDialog = page.getByRole('dialog', { name: 'Edit item', exact: true });
@@ -168,7 +174,7 @@ test('Setup lists page categories and request bounded, searchable category-filte
   for (let index = 0; index < 11; index++) {
     expect((await request.post('/api/setup/categories', { data: { name: `${name} category ${index}` } })).ok()).toBe(true);
   }
-  await page.goto('/setup');
+  await page.goto('/setup/items');
   await filter(page, name);
   await select(page, 'Filter by category', name);
   await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
@@ -187,11 +193,13 @@ test('Setup lists page categories and request bounded, searchable category-filte
   await filter(page, `${name} 00`);
   await expect(section.getByRole('listitem')).toHaveCount(1);
   await expect(section).toContainText('Page 1');
+  await page.getByRole('link', { name: 'Categories', exact: true }).click();
   const categories = page.getByRole('region', { name: 'Categories', exact: true });
   await expect(categories.getByRole('listitem')).toHaveCount(10);
   const firstCategory = await categories.getByRole('listitem').first().textContent();
   await page.getByLabel('Category pages', { exact: true }).getByRole('button', { name: 'Next page' }).click();
   await expect(categories.getByRole('listitem').first()).not.toHaveText(firstCategory ?? '');
+  await page.getByRole('link', { name: 'Items', exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath('setup-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 375, height: 812 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

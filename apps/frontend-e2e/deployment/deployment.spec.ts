@@ -63,7 +63,7 @@ test('production containers proxy, persist, shut down cleanly, and recover after
   expect(asset.headers()['cache-control']).toContain('immutable');
 
   const menu = itemsResponseSchema.parse(await (await request.get('/api/menu/items')).json());
-  expect(menu.total).toBe(12);
+  expect(menu.total).toBe(36);
   const item = menu.items.find((entry) => entry.pricingMode === 'fixed' && entry.available)!;
   expect(item).toBeTruthy();
   const polling = socket(baseURL!, ['polling']);
@@ -129,7 +129,7 @@ test('production containers proxy, persist, shut down cleanly, and recover after
     const replay = await request.post('/api/orders', { headers: { 'Idempotency-Key': key }, data: { quoteId: quote.quoteId } });
     expect(replay.ok()).toBe(true);
     expect(orderResponseSchema.parse(await replay.json())).toEqual(original);
-    expect(itemsResponseSchema.parse(await (await request.get('/api/menu/items')).json()).total).toBe(12);
+    expect(itemsResponseSchema.parse(await (await request.get('/api/menu/items')).json()).total).toBe(36);
     await page.goto(`/orders/${original.order.id}`);
     await expect(page.getByRole('main')).toContainText(item.name);
   } finally {

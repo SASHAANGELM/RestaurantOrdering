@@ -84,6 +84,7 @@ export function createMenuService(connection: DatabaseConnection) {
         const changes = {
           categoryId: input.categoryId ?? current.categoryId, name: input.name ?? current.name,
           description: input.description === undefined ? current.description : input.description,
+          imageUrl: input.imageUrl === undefined ? current.imageUrl : input.imageUrl,
           available: input.available ?? current.available,
           pricingMode: 'pricingMode' in input ? input.pricingMode : current.pricingMode,
           priceMinor: 'pricingMode' in input ? input.pricingMode === 'fixed' ? input.priceMinor : null : current.priceMinor,

@@ -4,7 +4,7 @@ Read this index first every time you need the next task or a list of all tasks.
 Then open the relevant task file for its scope, acceptance criteria, completion
 record, and verification results; read dependency files only as needed.
 
-All 16 tasks are required for the agreed prototype. **16 complete; 0 remaining.**
+**18 complete.**
 
 | ID | Task | Status | Depends on |
 | --- | --- | --- | --- |
@@ -24,6 +24,8 @@ All 16 tasks are required for the agreed prototype. **16 complete; 0 remaining.*
 | T14 | [Implement two-service Docker deployment](t14-implement-two-service-docker-deployment.md) | Complete | [T08](t08-implement-socket-io-and-revision-synchronization.md), [T09](t09-implement-angular-shell-and-client-adapters.md) |
 | T15 | [Complete reliability, performance, and CI verification](t15-complete-reliability-performance-and-ci-verification.md) | Complete | [T10](t10-implement-setup-ui.md), [T12](t12-implement-review-confirmation-and-recovery-ui.md), [T13](t13-implement-orders-ui-and-manual-statuses.md), [T14](t14-implement-two-service-docker-deployment.md) |
 | T16 | [Complete README and handoff](t16-complete-readme-and-handoff.md) | Complete | [T15](t15-complete-reliability-performance-and-ci-verification.md) |
+| T17 | [Refresh menu, cart, and catalog management](t17-refresh-menu-cart-and-catalog-management.md) | Complete | [T03](t03-implement-schema-migrations-and-seeds.md), [T10](t10-implement-setup-ui.md), [T11](t11-implement-menu-cart-and-large-menu-behavior.md), [T12](t12-implement-review-confirmation-and-recovery-ui.md) |
+| T18 | [Improve ordering, media delivery, and connection feedback](t18-improve-ordering-media-delivery-and-connection-feedback.md) | Complete | [T17](t17-refresh-menu-cart-and-catalog-management.md) |
 
 ## Selecting work
 

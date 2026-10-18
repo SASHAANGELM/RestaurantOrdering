@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { resolve } from 'node:path';
+import { imageEndpoint } from './modules/images/endpoint';
 import express, { type Express } from 'express';
 import { z } from 'zod';
 import type { DatabaseConnection } from './db/connection';
@@ -12,6 +14,7 @@ import { validateRequest } from './middleware/validation';
 
 export interface AppOptions {
   connection: DatabaseConnection;
+  imagesDirectory?: string;
   jsonBodyLimitBytes: number;
   isShuttingDown?: () => boolean;
   reportError?: ErrorReporter;
@@ -47,6 +50,7 @@ export function createApp(options: AppOptions) {
   });
   app.use((_request, _response, next) => { next(options.isShuttingDown?.() ? unavailableError() : undefined); });
   app.use(express.json({ limit: options.jsonBodyLimitBytes, strict: true, inflate: false }));
+  app.get('/api/images/:filename', imageEndpoint(options.imagesDirectory ?? process.env['IMAGE_DIRECTORY'] ?? resolve(__dirname, 'assets/images')));
   app.get('/api', (_request, response) => { response.json({ name: 'Restaurant Ordering API' }); });
   app.get('/api/sync', (request, response) => {
     response.setHeader('Cache-Control', 'no-store');

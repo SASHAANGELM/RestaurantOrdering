@@ -16,7 +16,7 @@
         "outputPath": "dist/apps/backend",
         "main": "apps/backend/src/main.ts",
         "additionalEntryPoints": ["apps/backend/src/database-cli.ts"],
-        "assets": [{ "input": "apps/backend/drizzle", "glob": "**/*", "output": "drizzle" }],
+        "assets": [{ "input": "apps/backend/drizzle", "glob": "**/*", "output": "drizzle" }, { "input": "apps/backend/src/assets/images", "glob": "**/*", "output": "assets/images" }],
         "tsConfig": "apps/backend/tsconfig.app.json",
         "bundle": true,
         "generatePackageJson": false,

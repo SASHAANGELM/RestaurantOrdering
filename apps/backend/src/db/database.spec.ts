@@ -97,12 +97,12 @@ describe('SQLite persistence on isolated real files', () => {
   it('repeats migrations without changing data or adding journal entries', () => {
     menuFixture();
     const before = connection.sqlite.prepare('SELECT * FROM __drizzle_migrations').all();
-    expect(before).toHaveLength(1);
+    expect(before).toHaveLength(2);
     migrateDatabase(connection);
     connection.close();
     connection = open({ seedMode: 'small' });
     expect(connection.sqlite.prepare('SELECT * FROM __drizzle_migrations').all()).toEqual(before);
-    expect(connection.db.select().from(menuItems).all()).toHaveLength(12);
+    expect(connection.db.select().from(menuItems).all()).toHaveLength(36);
     expect(connection.db.select().from(appState).get()?.menuRevision).toBe(1);
   });
 
@@ -118,7 +118,7 @@ describe('SQLite persistence on isolated real files', () => {
     expect(() => open({ migrationsFolder })).toThrow();
     connection = open();
     expect(connection.sqlite.prepare("SELECT name FROM sqlite_master WHERE name = 'partial_migration'").get()).toBeUndefined();
-    expect(connection.sqlite.prepare('SELECT * FROM __drizzle_migrations').all()).toHaveLength(1);
+    expect(connection.sqlite.prepare('SELECT * FROM __drizzle_migrations').all()).toHaveLength(2);
   });
 
   it('fails on missing migration assets without seeding', () => {
@@ -132,7 +132,7 @@ describe('SQLite persistence on isolated real files', () => {
   });
 
   it('seeds a small menu once and preserves edits and archival across restart', () => {
-    expect(seedDatabase(connection, 'small')).toEqual({ seeded: true, mode: 'small', categories: 4, items: 12 });
+    expect(seedDatabase(connection, 'small')).toEqual({ seeded: true, mode: 'small', categories: 6, items: 36 });
     const item = connection.db.select().from(menuItems).get()!;
     connection.db.update(menuItems).set({ name: 'Edited by staff', archivedAt: '2026-02-01T00:00:00.000Z', revision: 2 })
       .where(eq(menuItems.id, item.id)).run();
@@ -142,14 +142,74 @@ describe('SQLite persistence on isolated real files', () => {
     expect(seedDatabase(connection, 'large').seeded).toBe(false);
     connection.close();
     connection = open({ seedMode: 'small' });
-    expect(connection.db.select().from(menuItems).all()).toHaveLength(12);
+    expect(connection.db.select().from(menuItems).all()).toHaveLength(36);
     expect(connection.db.select().from(menuItems).where(eq(menuItems.id, item.id)).get()).toMatchObject({
       name: 'Edited by staff', archivedAt: '2026-02-01T00:00:00.000Z', revision: 2
     });
     expect(connection.db.select().from(appState).get()).toMatchObject({ menuRevision: 9, ordersRevision: 4 });
   });
 
-  it('creates a deterministic 5,000-item fixture with fixed, open, and unavailable items', () => {
+  it('seeds six balanced categories and twelve locally served stock images', () => {
+    seedDatabase(connection, 'small');
+    const rows = connection.db.select().from(menuItems).all();
+    const groups = connection.db.select().from(categories).all();
+    expect(groups).toHaveLength(6);
+    for (const group of groups) expect(rows.filter((item) => item.categoryId === group.id)).toHaveLength(6);
+    expect(new Set(rows.map((item) => item.imageUrl)).size).toBe(12);
+    expect(rows.every((item) => item.imageUrl?.startsWith('/api/images/'))).toBe(true);
+  });
+
+  it('upgrades legacy demo IDs atomically, preserving staff edits, order links and checkout recovery', () => {
+    const { item, category, order, line, snapshot } = orderFixture();
+    const oldCategory = '00000001-0000-4000-8000-000000000000';
+    const oldItem = '00000002-0000-4000-8000-000000000000';
+    connection.sqlite.transaction(() => {
+      connection.sqlite.pragma('defer_foreign_keys = ON');
+      connection.db.update(categories).set({ id: oldCategory, name: 'Staff category', revision: 7 }).where(eq(categories.id, category.id)).run();
+      connection.db.update(menuItems).set({ categoryId: oldCategory }).where(eq(menuItems.categoryId, category.id)).run();
+      connection.db.update(menuItems).set({ id: oldItem, name: 'Staff dish', priceMinor: 1234, revision: 9, imageUrl: null }).where(eq(menuItems.id, item.id)).run();
+      connection.db.update(orderLines).set({ categoryId: oldCategory, itemId: oldItem }).where(eq(orderLines.id, line.id)).run();
+      connection.db.update(checkoutQuotes).set({ snapshot: { ...snapshot, lines: snapshot.lines.map((entry) => ({ ...entry, categoryId: oldCategory, itemId: oldItem })) } }).run();
+      // Exercise reference migration independently of demo expansion.
+      connection.db.update(appState).set({ demoSeedMode: 'large' }).run();
+    })();
+    migrateDatabase(connection);
+    const upgraded = connection.db.select().from(menuItems).where(eq(menuItems.name, 'Staff dish')).get()!;
+    expect(upgraded).toMatchObject({ priceMinor: 1234, revision: 9 });
+    expect(upgraded.id).not.toBe(oldItem); expect(upgraded.categoryId).not.toBe(oldCategory);
+    expect(connection.db.select().from(categories).where(eq(categories.id, upgraded.categoryId)).get()).toMatchObject({ name: 'Staff category', revision: 7 });
+    expect(connection.db.select().from(orderLines).where(eq(orderLines.id, line.id)).get()).toMatchObject({ itemId: upgraded.id, categoryId: upgraded.categoryId, lineTotalMinor: line.lineTotalMinor });
+    expect(connection.db.select().from(checkoutQuotes).get()?.snapshot.lines[0]).toMatchObject({ itemId: upgraded.id, categoryId: upgraded.categoryId, unitPriceMinor: snapshot.lines[0]!.unitPriceMinor });
+    expect(connection.db.select().from(orders).get()).toMatchObject({ id: order.id, idempotencyKey: order.idempotencyKey, requestHash: order.requestHash });
+    expect(connection.sqlite.pragma('foreign_key_check')).toEqual([]);
+    const revision = connection.db.select().from(appState).get()!.menuRevision;
+    migrateDatabase(connection);
+    expect(connection.db.select().from(appState).get()!.menuRevision).toBe(revision);
+  });
+
+  it('expands the original small demo once without replacing staff edits or archived records', () => {
+    const time = '2026-01-01T00:00:00.000Z';
+    const legacy = (kind: number, index: number) => `0000000${kind}-0000-4000-8000-${index.toString(16).padStart(12, '0')}`;
+    for (let categoryIndex = 0; categoryIndex < 4; categoryIndex++) {
+      connection.db.insert(categories).values({ id: legacy(1, categoryIndex), name: `Staff category ${categoryIndex}`, sortOrder: categoryIndex, createdAt: time, updatedAt: time }).run();
+      for (let index = 0; index < 3; index++) connection.db.insert(menuItems).values({
+        id: legacy(2, categoryIndex * 3 + index), categoryId: legacy(1, categoryIndex), name: `Staff dish ${categoryIndex}-${index}`,
+        pricingMode: 'fixed', priceMinor: 4321, available: false, archivedAt: time, revision: 5, createdAt: time, updatedAt: time
+      }).run();
+    }
+    connection.db.update(appState).set({ demoSeedMode: 'small', menuRevision: 10 }).run();
+    migrateDatabase(connection);
+    const dishes = connection.db.select().from(menuItems).all();
+    expect(dishes).toHaveLength(36); expect(connection.db.select().from(categories).all()).toHaveLength(6);
+    expect(dishes.filter((item) => item.name.startsWith('Staff dish')).every((item) =>
+      item.priceMinor === 4321 && item.revision === 5 && !item.available && item.archivedAt === time && item.imageUrl !== null)).toBe(true);
+    expect(dishes.every((item) => !item.id.startsWith('00000002'))).toBe(true);
+    expect(connection.sqlite.pragma('foreign_key_check')).toEqual([]);
+    migrateDatabase(connection); expect(connection.db.select().from(menuItems).all()).toHaveLength(36);
+    expect(connection.db.select().from(appState).get()!.menuRevision).toBe(11);
+  });
+
+  it('creates a reproducible 5,000-item menu with independent random IDs with fixed, open, and unavailable items', () => {
     expect(seedDatabase(connection, 'large')).toEqual({ seeded: true, mode: 'large', categories: 50, items: 5_000 });
     expect(connection.db.select().from(categories).all()).toHaveLength(50);
     const firstRun = connection.db.select().from(menuItems).orderBy(menuItems.id).all();
@@ -158,7 +218,12 @@ describe('SQLite persistence on isolated real files', () => {
     expect(firstRun.some((item) => !item.available)).toBe(true);
     const other = initializeDatabase({ filename: join(directory, 'other.sqlite'), seedMode: 'large' });
     connections.push(other);
-    expect(other.db.select().from(menuItems).orderBy(menuItems.id).all()).toEqual(firstRun);
+    const secondRun = other.db.select().from(menuItems).all();
+    expect(secondRun.map((item) => item.name).sort()).toEqual(firstRun.map((item) => item.name).sort());
+    expect(secondRun.some((item) => firstRun.some((first) => first.id === item.id))).toBe(false);
+    for (const row of [...firstRun, ...connection.db.select().from(categories).all()]) {
+      expect(row.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    }
     connection.close();
     connection = open({ seedMode: 'large' });
     expect(connection.db.select().from(menuItems).all()).toHaveLength(5_000);

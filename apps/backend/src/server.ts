@@ -14,6 +14,7 @@ export interface SocketLifecycle {
 
 export interface ServerOptions {
   migrationsFolder?: string;
+  imagesDirectory?: string;
   registerRoutes?: AppOptions['registerRoutes'];
   reportError?: AppOptions['reportError'];
   attachSockets?: (server: Server) => SocketLifecycle;
@@ -36,7 +37,7 @@ export async function startServer(config: BackendConfig, options: ServerOptions 
   try {
     app = createApp({
       connection, jsonBodyLimitBytes: config.jsonBodyLimitBytes, isShuttingDown: () => stopping,
-      registerRoutes: options.registerRoutes, reportError: options.reportError,
+      imagesDirectory: options.imagesDirectory, registerRoutes: options.registerRoutes, reportError: options.reportError,
       notifications: {
         menuChanged: (notification) => realtime?.menuChanged(notification),
         ordersChanged: (notification) => realtime?.ordersChanged(notification)

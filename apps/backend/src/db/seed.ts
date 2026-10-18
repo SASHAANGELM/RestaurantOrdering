@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { demoMenu } from './demo-menu';
 import type { DatabaseConnection } from './connection';
 import { appState, categories, checkoutQuotes, menuItems, orderLines, orders } from './schema';
 
@@ -11,12 +13,6 @@ export function parseSeedMode(value: string): SeedMode {
 }
 
 const SEED_TIMESTAMP = '2026-01-01T00:00:00.000Z';
-const SMALL_CATEGORIES = ['Starters', 'Mains', 'Desserts', 'Drinks'];
-const SMALL_ITEMS = ['Soup', 'Salad', 'Bread', 'Pasta', 'Burger', 'Seasonal special', 'Cake', 'Ice cream', 'Fruit', 'Coffee', 'Tea', 'Custom drink'];
-// Valid, stable UUIDs make fixture references reproducible without random collisions.
-const seedId = (kind: number, index: number) =>
-  `${kind.toString(16).padStart(8, '0')}-0000-4000-8000-${index.toString(16).padStart(12, '0')}`;
-
 export function seedDatabase(connection: DatabaseConnection, mode: SeedMode) {
   if (mode === 'none') return { seeded: false, reason: 'disabled' } as const;
   return connection.sqlite.transaction(() => {
@@ -29,12 +25,13 @@ export function seedDatabase(connection: DatabaseConnection, mode: SeedMode) {
       return { seeded: false, reason: 'database-not-empty' } as const;
     }
 
-    const categoryCount = mode === 'large' ? 50 : SMALL_CATEGORIES.length;
-    const itemCount = mode === 'large' ? 5_000 : SMALL_ITEMS.length;
+    const categoryCount = mode === 'large' ? 50 : demoMenu.length;
+    const itemCount = mode === 'large' ? 5_000 : demoMenu.reduce((sum, category) => sum + category.items.length, 0);
+    const categoryIds = Array.from({ length: categoryCount }, () => randomUUID());
     for (let index = 0; index < categoryCount; index++) {
       connection.db.insert(categories).values({
-        id: seedId(1, index),
-        name: mode === 'small' ? SMALL_CATEGORIES[index]! : `Category ${String(index + 1).padStart(2, '0')}`,
+        id: categoryIds[index]!,
+        name: mode === 'small' ? demoMenu[index]!.name : `Category ${String(index + 1).padStart(2, '0')}`,
         sortOrder: index,
         createdAt: SEED_TIMESTAMP,
         updatedAt: SEED_TIMESTAMP
@@ -42,20 +39,23 @@ export function seedDatabase(connection: DatabaseConnection, mode: SeedMode) {
     }
     const insertItem = connection.db.insert(menuItems).values({
       id: sql.placeholder('id'), categoryId: sql.placeholder('categoryId'), name: sql.placeholder('name'),
-      description: sql.placeholder('description'), pricingMode: sql.placeholder('pricingMode'),
+      description: sql.placeholder('description'), imageUrl: sql.placeholder('imageUrl'), pricingMode: sql.placeholder('pricingMode'),
       priceMinor: sql.placeholder('priceMinor'), available: sql.placeholder('available'),
       createdAt: SEED_TIMESTAMP, updatedAt: SEED_TIMESTAMP
     }).prepare();
+    const dishes = demoMenu.flatMap((category, categoryIndex) => category.items.map((item) => ({ ...item, categoryIndex })));
     for (let index = 0; index < itemCount; index++) {
-      const isOpen = mode === 'small' ? index === 5 || index === 11 : index % 10 === 9;
+      const dish = dishes[index % dishes.length]!;
+      const isOpen = mode === 'small' ? dish.priceMinor === null : index % 10 === 9;
       insertItem.run({
-        id: seedId(2, index),
-        categoryId: seedId(1, mode === 'small' ? Math.floor(index / 3) : index % categoryCount),
-        name: mode === 'small' ? SMALL_ITEMS[index]! : `Menu item ${String(index + 1).padStart(4, '0')}`,
-        description: mode === 'small' ? 'Demo menu item' : `Large-menu fixture ${index + 1}`,
+        id: randomUUID(),
+        categoryId: categoryIds[mode === 'small' ? dish.categoryIndex : index % categoryCount]!,
+        name: mode === 'small' ? dish.name : `Menu item ${String(index + 1).padStart(4, '0')}`,
+        description: mode === 'small' ? dish.description : `Large-menu fixture ${index + 1}`,
+        imageUrl: dish.imageUrl,
         pricingMode: isOpen ? 'open' : 'fixed',
-        priceMinor: isOpen ? null : 250 + (index % 100) * 25,
-        available: (mode === 'small' ? index !== 8 : index % 17 !== 16) ? 1 : 0
+        priceMinor: isOpen ? null : mode === 'small' ? dish.priceMinor : 250 + (index % 100) * 25,
+        available: (mode === 'small' ? dish.name !== 'Fruit' : index % 17 !== 16) ? 1 : 0
       });
     }
     connection.db.update(appState).set({ menuRevision: 1, demoSeedMode: mode }).where(eq(appState.id, 1)).run();

@@ -40,13 +40,13 @@ test('production 5,000-item menu has bounded DOM and measured feedback/layout un
       const button = (event.target as Element).closest('button[aria-label="Add Menu item 0001 to cart"]');
       if (!button) return;
       const start = performance.now();
-      const row = button.closest('li');
+
       const observer = new MutationObserver(() => {
-        if (!row?.textContent?.includes('Added to cart.')) return;
+        if (!document.querySelector('[role=dialog]')) return;
         observer.disconnect();
         requestAnimationFrame(() => requestAnimationFrame(() => metrics.interactionMs.push(performance.now() - start)));
       });
-      observer.observe(row!, { childList: true, subtree: true, characterData: true });
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     }, true);
   });
   const start = Date.now();
@@ -58,7 +58,11 @@ test('production 5,000-item menu has bounded DOM and measured feedback/layout un
   const initialReadyMs = Date.now() - start;
   const add = page.getByRole('button', { name: 'Add Menu item 0001 to cart', exact: true });
   await add.click();
+  await expect(page.getByRole('dialog', { name: 'Set quantity' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.menuPerformance.interactionMs.length)).toBe(1);
+  await page.getByRole('dialog', { name: 'Set quantity' }).getByRole('button', { name: 'Add to cart', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Set quantity' })).not.toBeVisible();
+  await expect(menu.getByRole('listitem')).toHaveCount(50);
   const domCounts: number[] = [];
   for (let index = 0; index < 4; index++) {
     domCounts.push(await menu.getByRole('listitem').count());
@@ -70,7 +74,9 @@ test('production 5,000-item menu has bounded DOM and measured feedback/layout un
   const searchStart = Date.now();
   await page.getByRole('textbox', { name: 'Search menu', exact: true }).fill('Menu item 5000');
   await expect(menu.getByRole('listitem')).toHaveCount(1);
-  expect((await menu.getByRole('list', { name: 'Menu results', exact: true }).boundingBox())!.height).toBe(resultsHeight);
+  const results = menu.getByRole('list', { name: 'Menu results', exact: true });
+  expect((await results.boundingBox())!.height).toBeLessThan(resultsHeight);
+  expect(await results.evaluate((element) => getComputedStyle(element).overflowY)).toBe('visible');
   const searchMs = Date.now() - searchStart;
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const metrics = await page.evaluate(() => window.menuPerformance);

@@ -28,6 +28,20 @@ const snapshot = {
 const itemInput = { categoryId, name: 'Coffee', available: true };
 
 describe('setup and common contracts', () => {
+  it('accepts image create/update/clear and rejects unsupported URLs and non-v4 IDs', () => {
+    for (const imageUrl of ['/images/soup.jpg', '/api/images/soup.jpg', 'https://example.com/dish.jpg']) {
+      expect(createItemSchema.safeParse({ ...itemInput, pricingMode: 'open', imageUrl }).success).toBe(true);
+      expect(updateItemSchema.safeParse({ expectedRevision: 1, imageUrl }).success).toBe(true);
+    }
+    expect(updateItemSchema.safeParse({ expectedRevision: 1, imageUrl: null }).success).toBe(true);
+    for (const imageUrl of ['http://example.com/a.jpg', 'javascript:alert(1)', '/images/../secret.jpg', 'https://']) {
+      expect(createItemSchema.safeParse({ ...itemInput, pricingMode: 'open', imageUrl }).success).toBe(false);
+    }
+    for (const categoryId of ['11111111-1111-1111-8111-111111111111', '11111111-1111-7111-8111-111111111111']) {
+      expect(createItemSchema.safeParse({ ...itemInput, categoryId, pricingMode: 'open' }).success).toBe(false);
+    }
+  });
+
   it('trims names and enforces string limits', () => {
     expect(createCategorySchema.parse({ name: ' Drinks ' })).toEqual({ name: 'Drinks', sortOrder: 0 });
     for (const name of ['', ' ', 'a'.repeat(121)]) {

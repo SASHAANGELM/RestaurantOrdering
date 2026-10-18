@@ -19,10 +19,10 @@ import { CheckoutStore } from './checkout.store';
         <p>Your cart is frozen until this checkout is resolved. Checking or retrying uses the original request.</p>
         <p class="request-key">Recovery key: {{ attempt.key }}</p>
         <p>Reviewed total: {{ attempt.quote.totalMinor / 100 | currency }}</p>
-        <div class="actions"><button mat-stroked-button [disabled]="checkout.busy()" (click)="checkout.lookup()">Check order outcome</button>
-          <button mat-flat-button [disabled]="checkout.busy()" (click)="checkout.retry()">Retry same checkout</button></div>
+        <div class="actions"><button mat-stroked-button [disabled]="checkout.busy()" (click)="checkout.lookup()"><i class="ti ti-search" aria-hidden="true"></i> Check order outcome</button>
+          <button mat-flat-button [disabled]="checkout.busy()" (click)="checkout.retry()"><i class="ti ti-refresh" aria-hidden="true"></i> Retry same checkout</button></div>
       } @else if (!checkout.blocked()) {
-        <button mat-stroked-button [disabled]="!checkout.canReview()" (click)="checkout.review()">Review order</button>
+        <button mat-stroked-button [disabled]="!checkout.canReview()" (click)="checkout.review()"><i class="ti ti-clipboard-check" aria-hidden="true"></i> Review order</button>
         @if (checkout.quote(); as quote) {
           @if (checkout.validQuote()) {
             <section class="review" aria-label="Order review">
@@ -52,9 +52,9 @@ import { CheckoutStore } from './checkout.store';
               @if (sync.connectionState() !== 'connected') { <p>Live updates are degraded. The server will check this quote again on confirmation.</p> }
               @if (sync.syncing() || sync.error()) {
                 <p>Confirmation is paused until the server synchronization check succeeds.</p>
-                <button mat-button [disabled]="sync.syncing()" (click)="sync.check()">Check connection</button>
+                <button mat-button [disabled]="sync.syncing()" (click)="sync.check()"><i class="ti ti-wifi" aria-hidden="true"></i> Check connection</button>
               }
-              <button mat-flat-button [disabled]="!checkout.canConfirm()" (click)="checkout.confirm()">Confirm order</button>
+              <button mat-flat-button [disabled]="!checkout.canConfirm()" (click)="checkout.confirm()"><i class="ti ti-check" aria-hidden="true"></i> Confirm order</button>
             </section>
           }
         }

@@ -44,15 +44,20 @@ test('orders appear live, filters add/remove membership, and two independent sta
     await Promise.all([page.goto('/orders'), second.goto('/orders')]);
     for (const client of [page, second]) await expect(client.getByRole('button', { name: 'Connection details' })).toContainText('Connected');
     const order = await createOrder(request, item);
-    for (const client of [page, second]) await expect(link(client, order)).toBeVisible();
+    for (const client of [page, second]) {
+      await expect(link(client, order)).toBeVisible();
+      await expect(client.locator('.order-row').filter({ has: link(client, order) })).toHaveClass(/status-placed/);
+    }
     await link(page, order).click(); await expect(page.getByText('Total: $14.00', { exact: true })).toBeVisible();
     await expect(page.getByText('Quantity: 2 × $7.50', { exact: true })).toBeVisible();
     await filter(second, 'Preparing'); await expect(link(second, order)).not.toBeVisible();
     await page.getByRole('button', { name: 'Start preparing', exact: true }).click();
     await expect(link(second, order)).toBeVisible();
+    await expect(second.locator('.order-row').filter({ has: link(second, order) })).toHaveClass(/status-preparing/);
     await page.getByRole('button', { name: 'Mark ready', exact: true }).click(); await expect(link(second, order)).not.toBeVisible();
     await filter(second, 'Ready'); await expect(link(second, order)).toBeVisible(); await link(second, order).click();
     await expect(second.getByText('Status: Ready', { exact: true })).toBeVisible();
+    await expect(second.getByText('Status: Ready', { exact: true })).toHaveClass(/status-ready/);
     await expect(second.getByRole('button', { name: 'Cancel order', exact: true })).not.toBeVisible();
     await context.setOffline(true); await second.getByRole('button', { name: 'Refresh order', exact: true }).click();
     await expect(second.getByRole('alert')).toContainText('Cannot reach the server'); await expect(second.getByText(item.name, { exact: true })).toBeVisible();

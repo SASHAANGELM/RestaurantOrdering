@@ -7,8 +7,8 @@ export default defineConfig({
   preview: {
     host: '127.0.0.1', port: 4200, strictPort: true,
     proxy: {
-      '/api': { target: 'http://127.0.0.1:3000' },
-      '/socket.io': { target: 'http://127.0.0.1:3000', ws: true }
+      '/api': { target: `http://127.0.0.1:${process.env['E2E_BACKEND_PORT'] ?? 3000}` },
+      '/socket.io': { target: `http://127.0.0.1:${process.env['E2E_BACKEND_PORT'] ?? 3000}`, ws: true }
     }
   }
 });

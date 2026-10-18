@@ -44,6 +44,24 @@ export const CartStore = signalStore(
     })
   })),
   withMethods((store, storage = inject(CART_STORAGE)) => ({
+    clear() { if (!store.checkoutLocked()) patchState(store, { ...emptyCart(), intentRevision: store.intentRevision() + 1 }); },
+    updateLine(id: string, quantityText: string, priceText: string): string | null {
+      if (store.checkoutLocked()) return 'Resolve the pending checkout before changing your cart.';
+      const line = store.lines().find((entry) => entry.id === id);
+      if (!line) return 'This cart line was removed. Close and reopen this dialog.';
+      let quantity: number; let price: number;
+      try { quantity = quantityValue(quantityText); } catch { return 'Enter a whole quantity from 1 to 99.'; }
+      try { price = line.item.pricingMode === 'fixed' ? line.item.priceMinor : parseUnitPriceMinor(priceText); }
+      catch { return 'Enter a price from 0.00 to 10,000.00 with at most two decimal places.'; }
+      const match = store.lines().find((other) => other.id !== id && other.item.id === line.item.id && other.item.pricingMode === line.item.pricingMode && !entryInputIssue(other) && entryPrice(other) === price);
+      if (match && quantity + quantityValue(match.quantityText) > 99) return 'A cart line can contain at most 99 items. Your existing quantity is retained.';
+      patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().flatMap((entry) => {
+        if (match && entry.id === id) return [];
+        if (entry.id === (match?.id ?? id)) return [{ ...entry, quantityText: String(quantity + (match ? quantityValue(match.quantityText) : 0)), priceText: moneyText(price) }];
+        return [entry];
+      }) });
+      return null;
+    },
     lockCheckout(locked: boolean) { patchState(store, { checkoutLocked: locked }); },
     completeCheckout(original: StoredCart): boolean {
       if (JSON.stringify({ version: 1, lines: store.lines(), discountText: store.discountText() }) === JSON.stringify(original)) {

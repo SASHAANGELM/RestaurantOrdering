@@ -87,6 +87,37 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     } finally { reopened.close(); }
   });
 
+  it('counts available matches across pages and sorts unavailable items last', async () => {
+    service.createItem({ categoryId: category.id, name: 'Alpha soup', pricingMode: 'fixed', priceMinor: 100, available: false });
+    service.createItem({ categoryId: category.id, name: 'Zucchini soup', pricingMode: 'fixed', priceMinor: 100, available: true });
+    const other = service.createCategory({ name: 'Other', sortOrder: 0 }).response.category;
+    service.createItem({ categoryId: other.id, name: 'Zucchini salad', pricingMode: 'fixed', priceMinor: 100, available: true });
+    const result = categoriesResponseSchema.parse(await (await request('/menu/categories?search=zucchini')).json());
+    expect(result.categories.find((entry) => entry.id === category.id)?.availableCount).toBe(1);
+    expect(result.categories.find((entry) => entry.id === other.id)?.availableCount).toBe(1);
+    expect(result.menuUpdatedAt).toMatch(/^2026-/);
+    const unfiltered = categoriesResponseSchema.parse(await (await request('/menu/categories')).json());
+    expect(unfiltered.categories.find((entry) => entry.id === category.id)?.availableCount).toBe(2);
+    const first = listItems(connection, { page: 1, pageSize: 2 });
+    expect(first.items.every((entry) => entry.available)).toBe(true);
+    const full = listItems(connection, { page: 1, pageSize: 50 });
+    expect(full.items.at(-1)?.name).toBe('Alpha soup');
+  });
+
+  it('persists item photos through create, update, list and resolve, and supports clearing', async () => {
+    const created = itemMutationResponseSchema.parse(await (await request('/setup/items', 'POST', {
+      categoryId: category.id, name: 'Photographed salad', pricingMode: 'fixed', priceMinor: 850, available: true, imageUrl: '/images/salad.jpg'
+    })).json()).item;
+    expect(listItems(connection, page).items.find((entry) => entry.id === created.id)?.imageUrl).toBe('/api/images/salad.jpg');
+    const updated = itemMutationResponseSchema.parse(await (await request(`/setup/items/${created.id}`, 'PATCH', {
+      expectedRevision: 1, imageUrl: 'https://example.com/dish.jpg'
+    })).json()).item;
+    expect(updated.revision).toBe(2);
+    expect(resolveItems(connection, [created.id]).items[0]).toMatchObject({ item: { imageUrl: 'https://example.com/dish.jpg' } });
+    const cleared = itemMutationResponseSchema.parse(await (await request(`/setup/items/${created.id}`, 'PATCH', { expectedRevision: 2, imageUrl: null })).json());
+    expect(cleared.item).not.toHaveProperty('imageUrl');
+  });
+
   it('changes fixed/open pricing, clears descriptions, and toggles availability', async () => {
     const open = itemMutationResponseSchema.parse(await (await patchItem({ expectedRevision: 1, pricingMode: 'open',
       description: null, available: false })).json());
@@ -307,15 +338,15 @@ describe('menu APIs and services with isolated real SQLite files', () => {
       if (!address || typeof address === 'string') throw new Error('Missing fixture listener.');
       const url = `http://127.0.0.1:${address.port}/api`;
       const defaults = itemsResponseSchema.parse(await (await fetch(`${url}/menu/items`)).json());
-      expect(defaults).toMatchObject({ page: 1, pageSize: 50, total: mode === 'small' ? 12 : 5000, menuRevision: 1 });
-      expect(defaults.items).toHaveLength(mode === 'small' ? 12 : 50);
+      expect(defaults).toMatchObject({ page: 1, pageSize: 50, total: mode === 'small' ? 36 : 5000, menuRevision: 1 });
+      expect(defaults.items).toHaveLength(mode === 'small' ? 36 : 50);
       const first = itemsResponseSchema.parse(listItems(fixture, { page: 1, pageSize: 5 }));
       const second = itemsResponseSchema.parse(listItems(fixture, { page: 2, pageSize: 5 }));
       expect(itemsResponseSchema.parse(await (await fetch(`${url}/menu/items?page=2&pageSize=5`)).json())).toEqual(second);
       const resolvedResponse = await fetch(`${url}/menu/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemIds: [second.items[0]!.id] }) });
       expect(resolveItemsResponseSchema.parse(await resolvedResponse.json()).items[0]).toMatchObject({ item: second.items[0] });
-      expect(first.total).toBe(mode === 'small' ? 12 : 5000);
+      expect(first.total).toBe(mode === 'small' ? 36 : 5000);
       expect(first.items).toHaveLength(5);
       expect(second.items).toHaveLength(5);
       expect(new Set([...first.items, ...second.items].map((entry) => entry.id)).size).toBe(10);
@@ -324,7 +355,7 @@ describe('menu APIs and services with isolated real SQLite files', () => {
       expect(listItems(fixture, { page: 1, pageSize: 100 }).items.length).toBeLessThanOrEqual(100);
       const categories = listCategories(fixture);
       const filtered = listItems(fixture, { ...page, categoryId: categories.categories[0]!.id });
-      expect(filtered.total).toBe(mode === 'small' ? 3 : 100);
+      expect(filtered.total).toBe(mode === 'small' ? 6 : 100);
       expect(filtered.items.every((entry) => entry.categoryId === categories.categories[0]!.id)).toBe(true);
       expect(resolveItems(fixture, [second.items[0]!.id]).items[0]).toMatchObject({ item: second.items[0] });
       if (mode === 'large') {

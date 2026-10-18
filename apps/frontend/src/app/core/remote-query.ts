@@ -7,11 +7,12 @@ import { RealtimeSync } from './realtime-sync';
 /** A cancelled request and a superseded query/revision can never publish a snapshot. */
 export function remoteQuery<Query, Data>(options: {
   query: () => Query;
-  stream: keyof SyncState;
+  stream: keyof Pick<SyncState, 'menuRevision' | 'ordersRevision'>;
   load: (query: Query) => Observable<Data>;
   revision: (data: Data) => number;
 }) {
   const sync = inject(RealtimeSync);
+  const menuReadToken = Symbol('menu query');
   const data = signal<Data | null>(null);
   const loading = signal(false);
   const error = signal<ClientError | null>(null);
@@ -34,6 +35,7 @@ export function remoteQuery<Query, Data>(options: {
       const request = ++generation;
       pending?.unsubscribe();
       loading.set(true);
+      if (options.stream === 'menuRevision') sync.beginMenuRead?.(menuReadToken);
       error.set(null);
       pending = options.load(query).subscribe({
         next: (response) => {
@@ -44,19 +46,21 @@ export function remoteQuery<Query, Data>(options: {
           }
           acceptedKey.set(key);
           data.set(response);
-          sync.observe({ [options.stream]: options.revision(response) });
+          const modified = response !== null && typeof response === 'object' && 'menuUpdatedAt' in response ? response.menuUpdatedAt : undefined;
+          sync.observe({ [options.stream]: options.revision(response), ...(typeof modified === 'string' || modified === null ? { menuUpdatedAt: modified } : {}) });
         },
         error: (failure: unknown) => {
           if (request === generation && key === JSON.stringify(options.query())) {
             error.set(clientError(failure));
             loading.set(false);
+            if (options.stream === 'menuRevision') sync.endMenuRead?.(menuReadToken);
           }
         },
-        complete: () => { if (request === generation) loading.set(false); }
+        complete: () => { if (request === generation) { loading.set(false); if (options.stream === 'menuRevision') sync.endMenuRead?.(menuReadToken); } }
       });
     });
   });
-  inject(DestroyRef).onDestroy(() => { generation++; pending?.unsubscribe(); });
+  inject(DestroyRef).onDestroy(() => { generation++; pending?.unsubscribe(); if (options.stream === 'menuRevision') sync.endMenuRead?.(menuReadToken); });
   return {
     data: data.asReadonly(), loading: loading.asReadonly(), error: error.asReadonly(),
     stale: computed(() => {

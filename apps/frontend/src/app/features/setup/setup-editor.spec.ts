@@ -40,6 +40,28 @@ describe('Setup editor', () => {
     } }, { status: 409, statusText: 'Conflict' });
   }
 
+  it('keeps archival inside editing and requires explicit confirmation without submitting the draft', () => {
+    const { component, fixture } = editor();
+    component.form.patchValue({ name: 'Unsaved draft' });
+    expect(fixture.nativeElement.textContent).toContain('Archive item');
+    component.beginArchive(); fixture.detectChanges();
+    expect(component.title).toBe('Archive item');
+    expect(fixture.nativeElement.textContent).toContain('cannot be ordered');
+    http.expectNone(`/api/setup/items/${itemId}`);
+    component.save();
+    const request = http.expectOne(`/api/setup/items/${itemId}`);
+    expect(request.request.body).toEqual({ expectedRevision: 1, archived: true });
+    request.flush({ item: { ...item, archivedAt: timestamp, revision: 2 }, menuRevision: 2 });
+  });
+
+  it('preserves and clears item images explicitly', () => {
+    const { component } = editor({ entity: { ...item, imageUrl: '/images/soup.jpg' } });
+    expect(component.form.controls.imageUrl.value).toBe('/images/soup.jpg');
+    component.form.controls.imageUrl.setValue(''); component.save();
+    const request = http.expectOne(`/api/setup/items/${itemId}`);
+    expect(request.request.body.imageUrl).toBeNull(); request.flush({ item: { ...item, revision: 2 }, menuRevision: 2 });
+  });
+
   it('parses exact fixed cents, keeps the opening revision, and blocks duplicate submissions', () => {
     const { component } = editor();
     component.form.patchValue({ name: 'Edited soup', price: '0.29' });

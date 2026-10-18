@@ -39,8 +39,8 @@ describe('backend startup and shutdown on isolated databases', () => {
       expect(server.listening).toBe(false);
       const inspection = openDatabase(config.databasePath);
       try {
-        expect(inspection.sqlite.prepare('SELECT count(*) AS count FROM menu_items').get()).toEqual({ count: 12 });
-        expect(inspection.sqlite.prepare('SELECT count(*) AS count FROM __drizzle_migrations').get()).toEqual({ count: 1 });
+        expect(inspection.sqlite.prepare('SELECT count(*) AS count FROM menu_items').get()).toEqual({ count: 36 });
+        expect(inspection.sqlite.prepare('SELECT count(*) AS count FROM __drizzle_migrations').get()).toEqual({ count: 2 });
       } finally { inspection.close(); }
       return { close: async () => undefined, forceClose: () => undefined };
     });
@@ -49,7 +49,7 @@ describe('backend startup and shutdown on isolated databases', () => {
     expect((await fetch(`${url(runtime)}/api/health/ready`)).status).toBe(200);
     await runtime.shutdown();
     const reopened = await start({}, { seedMode: 'small' });
-    expect(reopened.connection.sqlite.prepare('SELECT count(*) AS count FROM menu_items').get()).toEqual({ count: 12 });
+    expect(reopened.connection.sqlite.prepare('SELECT count(*) AS count FROM menu_items').get()).toEqual({ count: 36 });
   });
 
   it.each(['missing', 'invalid'] as const)('fails startup clearly for %s migrations before attaching a transport', async (mode) => {

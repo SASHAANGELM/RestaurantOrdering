@@ -1,3 +1,4 @@
+import { addFromMenu } from './order-helpers';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { categoryMutationResponseSchema, itemMutationResponseSchema, orderResponseSchema } from '@restaurant-ordering/contracts';
@@ -12,7 +13,8 @@ async function fixture(request: APIRequestContext) {
 async function add(page: Page, name: string) {
   await page.goto('/menu');
   await page.getByRole('textbox', { name: 'Search menu', exact: true }).fill(name);
-  await page.getByRole('button', { name: `Add ${name} to cart`, exact: true }).click();
+  await addFromMenu(page, name);
+  await page.getByRole('link', { name: 'View cart', exact: true }).first().click();
 }
 const cart = (page: Page) => page.getByRole('region', { name: 'Your cart' });
 
@@ -50,7 +52,7 @@ test('review shows changed prices, handles local/live invalidation, and requires
   await page.getByRole('button', { name: 'Confirm order', exact: true }).click();
   await expect(cart(page)).toContainText('Your cart is retained. Review again before confirming.');
   await expect(cart(page).getByRole('textbox', { name: 'Fixed discount (USD)', exact: true })).toBeEnabled();
-  expect(posts).toBe(1); await expect(page).toHaveURL(/\/menu$/);
+  expect(posts).toBe(1); await expect(page).toHaveURL(/\/cart$/);
   await page.getByRole('button', { name: 'Review order', exact: true }).click(); await expect(review).toContainText('Final total: $9.00');
   await page.setViewportSize({ width: 375, height: 812 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -58,7 +60,7 @@ test('review shows changed prices, handles local/live invalidation, and requires
   await page.getByRole('button', { name: 'Confirm order', exact: true }).click();
   await expect(page).toHaveURL(/\/orders\/[a-f0-9-]+$/);
   await expect(page.getByRole('main')).toContainText('Total: $9.00'); expect(posts).toBe(2);
-  await page.getByRole('navigation').getByRole('link', { name: 'Menu', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
   await expect(cart(page)).toContainText('Your cart is empty');
 });
 
@@ -86,7 +88,12 @@ test('a committed response lost before delivery survives reload and a 404 lookup
   await page.route('**/api/orders/by-request/*', (route) => route.fulfill({ status: 404, json: {
     error: { code: 'NOT_FOUND', requestId: randomUUID(), message: 'Not visible yet', details: { resourceType: 'request', resourceId: saved.key } }
   } }));
-  await page.reload(); await expect(cart(page)).toContainText('No order is visible for this key yet');
+  await page.goto('/menu');
+  await page.getByRole('textbox', { name: 'Search menu', exact: true }).fill(item.name);
+  await expect(page.getByRole('button', { name: `Add ${item.name} to cart`, exact: true })).toBeDisabled();
+  await expect(page.getByRole('region', { name: 'Cart summary' })).toContainText('Checkout pending');
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
+  await expect(cart(page)).toContainText('No order is visible for this key yet');
   expect(attempts).toHaveLength(1); await expect(cart(page)).toContainText(saved.key);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(page.getByRole('button', { name: 'Retry same checkout', exact: true })).toBeEnabled(); expect(attempts).toHaveLength(1);

@@ -42,6 +42,24 @@ describe('per-tab cart intent and reconciliation', () => {
   }
   afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
 
+  it('clears lines and discount together, persists empty state and respects checkout locks', () => {
+    const cart = setup(); cart.add(fixed, '2'); TestBed.tick(); resolve(cart); cart.discount('0.29');
+    cart.lockCheckout(true); cart.clear(); expect(cart.lines()).toHaveLength(1);
+    cart.lockCheckout(false); cart.clear(); TestBed.tick();
+    expect(cart.lines()).toEqual([]); expect(cart.discountText()).toBe('0.00');
+    expect(storedCartSchema.parse(JSON.parse(saved.get(CART_STORAGE_KEY)!))).toMatchObject({ lines: [], discountText: '0.00' });
+  });
+
+  it('updates selected quantities, merges matching open-price lines safely and preserves invalid drafts', () => {
+    const cart = setup(); cart.add(open, '2', '1.00'); cart.add(open, '3', '2.00'); TestBed.tick(); resolve(cart);
+    const id = cart.lines()[0]!.id;
+    expect(cart.updateLine(id, '0', '2.00')).toContain('1 to 99'); expect(cart.lines()).toHaveLength(2);
+    expect(cart.updateLine(id, '4', '2.00')).toBeNull();
+    expect(cart.lines()).toHaveLength(1); expect(cart.lines()[0]?.quantityText).toBe('7');
+    cart.lockCheckout(true); expect(cart.updateLine(cart.lines()[0]!.id, '1', '3.00')).toContain('pending checkout');
+    expect(cart.lines()[0]?.quantityText).toBe('7');
+  });
+
   it('calculates exact cents, merges same-price additions, and validates versioned saved data', () => {
     const cart = setup();
     expect(cart.add(fixed, '2')).toBeNull();
