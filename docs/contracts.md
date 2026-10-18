@@ -78,7 +78,7 @@ Both health endpoints disable caching. Liveness returns `{ status: 'live' }` wit
 | `PATCH /api/setup/categories/:id` | Edit or archive with `{ expectedRevision, ...changes }`. |
 | `POST /api/setup/items` | Create with category, name, pricing mode/price, availability; 201. |
 | `PATCH /api/setup/items/:id` | Edit price/mode/availability/category/name or archive, with `expectedRevision`. |
-| `POST /api/checkout/quotes` | Validate cart and discount; return authoritative review snapshot or actionable problems. |
+| `POST /api/checkout/quotes` | Validate cart and discount; 201 with authoritative review snapshot or actionable problems. |
 | `POST /api/orders` | Confirm `{ quoteId }` with `Idempotency-Key` header; 201 first creation, 200 replay of the same request. |
 | `GET /api/orders/by-request/:idempotencyKey` | Recover committed result by opaque UUID key; 200 existing order or 404 not found yet. Register route before `/:id`. |
 | `GET /api/orders?status=&page=&pageSize=` | All orders, paginated newest first by creation timestamp/ID; includes `ordersRevision`. |
@@ -89,7 +89,7 @@ All menu configuration writes increment the changed entity revision and the glob
 
 Read each list/snapshot and its associated stream revision in one short database read transaction. This prevents a revision from describing newer state than the returned data. Cross-endpoint category/item snapshots may differ; if revisions differ, re-fetch to converge rather than accepting an older page over a newer revision.
 
-T05 implements item sorting by name/ID and category sorting by sort order/ID. Item search is a literal name substring using SQLite's built-in ASCII case folding; `%` and `_` are ordinary characters. Item pagination defaults to page 1 / 50 and caps page size at 100; pages beyond the result set return an empty list. Category responses retain the unpaged shared contract. Setup item lists include children of archived categories for management; `includeArchived=true` additionally includes individually archived items. Public Menu item lists exclude both archived items and archived categories' children but include unavailable items. Resolution preserves requested ID order with states missing, archived, category-archived, unavailable, or available (in that precedence). The transaction-scoped joined eligibility read is shared for future checkout services. See [T05 verification](t05-verification.md).
+T05 implements item sorting by name/ID and category sorting by sort order/ID. Item search is a literal name substring using SQLite's built-in ASCII case folding; `%` and `_` are ordinary characters. Item pagination defaults to page 1 / 50 and caps page size at 100; pages beyond the result set return an empty list. Category responses retain the unpaged shared contract. Setup item lists include children of archived categories for management; `includeArchived=true` additionally includes individually archived items. Public Menu item lists exclude both archived items and archived categories' children but include unavailable items. Resolution preserves requested ID order with states missing, archived, category-archived, unavailable, or available (in that precedence). T06 reuses this joined eligibility read inside its quote write transaction. See [T05 verification](t05-verification.md) and [T06 verification](t06-verification.md).
 
 ## 3. Review and confirmation protocol
 

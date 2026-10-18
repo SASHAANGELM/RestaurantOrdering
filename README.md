@@ -1,6 +1,6 @@
 # Restaurant Ordering
 
-Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T05 are implemented.** The frontend currently serves a workspace placeholder; the backend provides SQLite persistence, validated configuration, health checks, common errors, graceful shutdown, and menu configuration/query APIs. Checkout, ordering, realtime behavior, and Docker deployment are later [tasks](docs/tasks.md).
+Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T06 are implemented.** The frontend currently serves a workspace placeholder; the backend provides SQLite persistence, validated configuration, health checks, common errors, graceful shutdown, menu configuration/query APIs, and authoritative checkout quotes. Order confirmation, ordering, realtime behavior, and Docker deployment are later [tasks](docs/tasks.md).
 
 ## Local development
 
@@ -52,7 +52,7 @@ DATABASE_PATH=data/large.sqlite SEED_MODE=large pnpm dev
 
 Use a new path for a fresh fixture. Deleting a local database and its SQLite sidecars permanently removes that file's orders and configuration; stop the backend before any intentional reset. `data/`, SQLite files, and sidecars are ignored by Git. Tests create and remove their own OS temporary files.
 
-The persistence helpers include expiry cleanup that retains quotes referenced by orders. T05 implements menu HTTP APIs and shared item/category eligibility reads. Quote preparation/confirmation, order APIs, status rules, and realtime broadcasts remain later tasks; the schema supplies their constraints and storage. See [T03 verification](docs/t03-verification.md) for demonstrated persistence behavior.
+The persistence helpers include expiry cleanup that retains quotes referenced by orders. T05 implements menu HTTP APIs and shared item/category eligibility reads; T06 implements persisted quote preparation. Quote confirmation, order APIs, status rules, and realtime broadcasts remain later tasks; the schema supplies their constraints and storage. See [T03 verification](docs/t03-verification.md) for demonstrated persistence behavior.
 
 ## Menu configuration and queries
 
@@ -60,7 +60,9 @@ Use `GET /api/menu/categories`, `GET /api/menu/items`, and `POST /api/menu/resol
 
 Setup exposes category/item list and creation at `/api/setup/categories` and `/api/setup/items`; edit/archive with `PATCH /api/setup/categories/:id` or `/api/setup/items/:id`, including `expectedRevision`. Lists hide archived entities by default; `includeArchived=true` includes them. Setup retains items under archived categories for management, while Menu excludes them from ordering eligibility. An archive sends `archived: true`; unarchiving is outside scope.
 
-Writes persist entity/menu revisions atomically and reject stale edits with `409 REVISION_CONFLICT`. No-op writes preserve revisions. Fixed pricing writes include `pricingMode: "fixed"` and integer `priceMinor`; open pricing writes send `pricingMode: "open"` with no price. See [contracts](docs/contracts.md#2-http-surface) for request details and [T05 verification](docs/t05-verification.md) for demonstrated behavior. Checkout and realtime delivery are not yet implemented.
+Writes persist entity/menu revisions atomically and reject stale edits with `409 REVISION_CONFLICT`. No-op writes preserve revisions. Fixed pricing writes include `pricingMode: "fixed"` and integer `priceMinor`; open pricing writes send `pricingMode: "open"` with no price. See [contracts](docs/contracts.md#2-http-surface) for request details and [T05 verification](docs/t05-verification.md) for demonstrated behavior.
+
+`POST /api/checkout/quotes` accepts cart lines and an integer-cent discount, recalculates prices from the current menu, and returns 201 with a persisted five-minute review snapshot and visible observed-value changes. Invalid carts receive line-specific issues; quoting creates no order or inventory reservation. See [T06 verification](docs/t06-verification.md). Order confirmation and realtime delivery remain later tasks.
 
 ## Backend lifecycle and health
 

@@ -42,7 +42,7 @@ Sources: [Angular release policy](https://angular.dev/reference/releases), [Angu
 
 ## 3. Repository layout and boundaries
 
-Target layout. T01 created the apps/contracts projects and toolchain configuration; T02 implemented the shared schemas, DTOs, errors, event maps, and money helpers. T03 added the database schema, migration runner/assets, seeds, and startup initialization. T04 added the app factory, validated configuration, common middleware, and server lifecycle. T05 added the menu router, mutation services, and transactional queries. Remaining feature folders and deployment files arrive in later tasks:
+Target layout. T01 created the apps/contracts projects and toolchain configuration; T02 implemented the shared schemas, DTOs, errors, event maps, and money helpers. T03 added the database schema, migration runner/assets, seeds, and startup initialization. T04 added the app factory, validated configuration, common middleware, and server lifecycle. T05 added the menu router, mutation services, and transactional queries. T06 added the checkout quote router and transactional quote service. Remaining feature folders and deployment files arrive in later tasks:
 
 ```text
 apps/

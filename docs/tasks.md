@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01–T05 complete; T06–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T06 complete; T07–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -67,11 +67,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
   Completed 2026-10-18. See [verification results](t05-verification.md) and [menu configuration/query behavior](contracts.md#2-http-surface). Added 57 isolated real-file menu API/service tests covering mutations, conflicts, archive eligibility, rollback, concurrent snapshot reads, post-commit notification data, and bounded small/5,000-item fixture pages. Uncached `pnpm check` passed, including both app unit-test targets and production builds. Shared eligibility reads are ready for T06/T07; checkout endpoints and Socket.IO remain later tasks.
 
-- [ ] **T06 — Implement authoritative checkout quotes**
+- [x] **T06 — Implement authoritative checkout quotes**
 
   Recalculate prices/totals from DB; accept open prices only for open items; validate discount and item/category availability. Persist five-minute quotes with exact snapshots/menu revision, and return visible differences from the client's observed values.
 
   Acceptance: tests cover changed fixed prices, removed/archived/unavailable items/categories, pricing-mode switches, multiple open prices for one item, zero-total orders, excessive discounts, invalid decimals at input boundaries, and overflow protection. Invalid carts receive line-specific issues; no quote reserves inventory or creates an order.
+
+  Completed 2026-10-18. See [verification results](t06-verification.md). Added the transactional quote endpoint and 44 isolated real-file checkout tests covering authoritative snapshots, five-minute expiry metadata, visible differences, line-specific cart issues, pricing switches, safe money boundaries, rollback, and writer serialization. Uncached `pnpm check` passed, including frontend/backend unit tests and both production builds. Order confirmation remains T07.
 
 - [ ] **T07 — Implement idempotent orders and status transitions**
 
