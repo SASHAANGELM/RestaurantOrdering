@@ -26,7 +26,7 @@ function restore(storage: () => Storage): StoredCart & { storageNotice: string |
 /** Root lifetime keeps per-tab intent independent of route/page and menu snapshots. */
 export const CartStore = signalStore(
   { providedIn: 'root' },
-  withState(() => restore(inject(CART_STORAGE))),
+  withState(() => ({ ...restore(inject(CART_STORAGE)), checkoutLocked: false, intentRevision: 0 })),
   withComputed((store) => ({
     itemIds: computed(() => [...new Set(store.lines().map((line) => line.item.id))].sort(), { equal: (a, b) => JSON.stringify(a) === JSON.stringify(b) }),
     estimate: computed(() => estimateCart(store.lines(), store.discountText()))
@@ -43,8 +43,19 @@ export const CartStore = signalStore(
         lineTotalMinor: entryInputIssue(line) ? null : entryPrice(line) * quantityValue(line.quantityText) }));
     })
   })),
-  withMethods((store) => ({
+  withMethods((store, storage = inject(CART_STORAGE)) => ({
+    lockCheckout(locked: boolean) { patchState(store, { checkoutLocked: locked }); },
+    completeCheckout(original: StoredCart): boolean {
+      if (JSON.stringify({ version: 1, lines: store.lines(), discountText: store.discountText() }) === JSON.stringify(original)) {
+        patchState(store, { ...emptyCart(), intentRevision: store.intentRevision() + 1 });
+      }
+      try {
+        storage().setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: store.lines(), discountText: store.discountText() }));
+        return true;
+      } catch { return false; }
+    },
     add(item: MenuItem, quantityText: string, priceText = ''): string | null {
+      if (store.checkoutLocked()) return 'Resolve the pending checkout before changing your cart.';
       if (!item.available || item.archivedAt) return 'This item is unavailable. Your cart is retained.';
       let quantity: number;
       let price: number;
@@ -56,18 +67,19 @@ export const CartStore = signalStore(
       if (match) {
         const combined = quantityValue(match.quantityText) + quantity;
         if (combined > 99) return 'A cart line can contain at most 99 items. Your existing quantity is retained.';
-        patchState(store, { lines: store.lines().map((line) => line.id === match.id ? { ...line, quantityText: String(combined) } : line) });
+        patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().map((line) => line.id === match.id ? { ...line, quantityText: String(combined) } : line) });
       } else {
         if (store.lines().length >= MAX_CART_LINES) return 'The cart can contain at most 100 lines. Remove a line first.';
-        patchState(store, { lines: [...store.lines(), newEntry(item, String(quantity), moneyText(price))] });
+        patchState(store, { intentRevision: store.intentRevision() + 1, lines: [...store.lines(), newEntry(item, String(quantity), moneyText(price))] });
       }
       return null;
     },
     edit(id: string, field: 'quantityText' | 'priceText', value: string) {
-      patchState(store, { lines: store.lines().map((line) => line.id === id ? { ...line, [field]: value.slice(0, 32) } : line) });
+      if (store.checkoutLocked()) return;
+      patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().map((line) => line.id === id ? { ...line, [field]: value.slice(0, 32) } : line) });
     },
-    discount(value: string) { patchState(store, { discountText: value.slice(0, 32) }); },
-    remove(id: string) { patchState(store, { lines: store.lines().filter((line) => line.id !== id) }); }
+    discount(value: string) { if (!store.checkoutLocked()) patchState(store, { intentRevision: store.intentRevision() + 1, discountText: value.slice(0, 32) }); },
+    remove(id: string) { if (!store.checkoutLocked()) patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().filter((line) => line.id !== id) }); }
   })),
   withHooks({ onInit(store, storage = inject(CART_STORAGE)) {
     effect(() => {

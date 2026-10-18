@@ -103,6 +103,8 @@ The cart is an intent; a quote is the exact server result the user reviews. An o
 6. **Commit atomically.** The server performs the transaction below, checking the database again even if the socket and UI report everything is current.
 7. **Resolve the result.** Success clears the cart/pending attempt and opens the order. `409 QUOTE_USED` identifies an already committed order for that exact quote: fetch/open it and resolve the attempt instead of reviewing again. A definitive stale/expired quote or invalid-cart rejection retains the cart, discards the quote, and requires another explicit review. A transport timeout/5xx leaves the outcome unknown: retain the key and exact payload; query by key and/or retry the same POST. Do not create a new quote/key until that attempt resolves. A 404 lookup is not proof that an in-flight request cannot still commit; keep using the same key.
 
+T12 implements this browser workflow with explicit review, before-send per-tab attempt persistence, locked pending intent, manual same-key retries, and read-only reload recovery. See [T12 verification](t12-verification.md) for acceptance evidence and storage limitations.
+
 Order creation transaction (synchronous, with an immediate write lock):
 
 ```text

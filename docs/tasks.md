@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01–T11 complete; T12–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T12 complete; T13–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -117,11 +117,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
   Completed 2026-10-18. See [verification results](t11-verification.md). Added server-paged Menu browsing, 250 ms search/category filters, quantity/open-price addition, editable cart lines and fixed discounts, exact live estimates, validated per-tab persistence, and off-page reconciliation with retained intent and visible price/eligibility changes. Added 33 frontend tests, three Chromium cart/menu scenarios, and an isolated real 5,000-item browser fixture proving bounded pages and matching skeleton dimensions. Uncached `pnpm check` passed with 76 frontend, 320 backend, and 75 contract tests and both production builds; all 11 standard Chromium tests and the separate large-menu test passed. The initial bundle succeeds at 560.30 kB with a 10.30 kB warning above the unchanged 550 kB warning threshold. Checkout UI remains T12.
 
-- [ ] **T12 — Implement review, confirmation, and recovery UI**
+- [x] **T12 — Implement review, confirmation, and recovery UI**
 
   Implement the explicit quote review and confirm workflow. Invalidate a quote on local edits/menu changes/expiry. Persist a frozen attempt key and exact quote payload before sending. Keep unknown outcomes pending and recover by key or same-key retry, including on page reload.
 
   Acceptance: a late availability/price change triggers review again and never silently places an order. Double-clicking sends one checkout intent. A response lost after commit, followed by reload/retry, opens the same order with no duplicate. A 404 lookup does not lead to a new key while the old attempt is unresolved; `QUOTE_USED` resolves to the existing order. Definite validation rejection restores an editable cart; no automatic order is submitted on reconnect. Storage failure has a clear recovery limitation.
+
+  Completed 2026-10-18. See [verification results](t12-verification.md). Added explicit authoritative review, local/menu/expiry invalidation, before-send frozen attempt persistence, same-key retry, read-only reload recovery, and existing-order resolution for `QUOTE_USED`. Added 29 frontend tests and four real Chromium scenarios, including a committed response dropped before delivery, reload/404/same-key retry with exactly one order, late server changes, and storage limitations. Uncached `pnpm check` passed with 105 frontend, 320 backend, and 75 contract tests and both production builds; all 15 standard Chromium tests and the separate 5,000-item menu test passed. The frontend build succeeds at 560.37 kB with a 10.37 kB warning above the unchanged 550 kB warning threshold. Staff status controls remain T13.
 
 - [ ] **T13 — Implement Orders UI and manual statuses**
 

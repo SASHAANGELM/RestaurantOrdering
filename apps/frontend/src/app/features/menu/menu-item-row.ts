@@ -16,7 +16,7 @@ import { OpenPriceDialog } from './open-price-dialog';
       @if (!item().available) { <span class="unavailable">Unavailable</span> }</div>
     <div class="actions"><label [for]="'quantity-' + item().id">Quantity</label>
       <input [id]="'quantity-' + item().id" [attr.aria-label]="'Quantity for ' + item().name" inputmode="numeric" maxlength="2" [formControl]="quantity" />
-      <button mat-stroked-button [disabled]="!item().available" [attr.aria-label]="'Add ' + item().name + ' to cart'" (click)="add()">Add</button></div>
+      <button mat-stroked-button [disabled]="!item().available || cart.checkoutLocked()" [attr.aria-label]="'Add ' + item().name + ' to cart'" (click)="add()">Add</button></div>
     @if (message()) { <p class="feedback" role="status">{{ message() }}</p> }
   `,
   styles: [`
