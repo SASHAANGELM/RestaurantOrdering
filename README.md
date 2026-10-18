@@ -1,6 +1,6 @@
 # Restaurant Ordering
 
-Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T08 are implemented.** The frontend currently serves a workspace placeholder; the backend provides SQLite persistence, validated configuration, health checks, common errors, graceful shutdown, menu configuration/query APIs, authoritative checkout quotes, idempotent order confirmation/recovery, manual order statuses, and Socket.IO notifications with persisted revision synchronization. Frontend workflows and Docker deployment are later [tasks](docs/tasks.md).
+Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T09 are implemented.** The frontend provides a lazy Material shell for Menu, Setup, Orders, and order details, validated HTTP adapters, NgRx SignalStores, one shared socket, and visible synchronization/recovery; the backend provides SQLite persistence, validated configuration, health checks, common errors, graceful shutdown, menu configuration/query APIs, authoritative checkout quotes, idempotent order confirmation/recovery, manual order statuses, and Socket.IO notifications with persisted revision synchronization. Editing, cart, checkout, status-control UI, and Docker deployment are later [tasks](docs/tasks.md).
 
 ## Local development
 
@@ -23,7 +23,7 @@ Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api>
 | `pnpm test` | Contract/money boundaries, browser/server contract consumers, isolated persistence, menu/checkout/order API/service, realtime/sync, and HTTP/lifecycle tests. |
 | `pnpm build` | Production frontend/backend builds and contracts declarations in `dist/`. |
 | `pnpm check` | Lint, typecheck, test, and build sequentially. |
-| `pnpm e2e` | Chromium app/API and two-context realtime proxy tests using their own frontend/backend servers. Stop `pnpm dev` first. |
+| `pnpm e2e` | Chromium shell/API, keyboard/focus, live-store/offline recovery, deep-link, and two-context realtime proxy tests using their own frontend/backend servers. Stop `pnpm dev` first and run after builds finish. |
 | `pnpm verify:native` | Exercise better-sqlite3 in memory and print runtime/driver compatibility. |
 | `pnpm db:generate` | Generate a reviewed SQL migration after changing the Drizzle schema. |
 | `pnpm db:check` | Check the migration history for collisions. |
@@ -76,7 +76,7 @@ Use `PATCH /api/orders/:id/status` with `{ "status": "preparing", "expectedRevis
 
 Socket.IO server and client are both pinned to **4.8.4**, using the same-origin `/socket.io` path. One server shares the Express HTTP listener, supporting HTTP polling and WebSocket upgrades. Register listeners before connecting. Every connection, including recovered sessions, receives `sync.state` with persisted `{ menuRevision, ordersRevision }`. Committed Setup writes broadcast `menu.changed`; committed order creation/status changes broadcast `orders.changed` to all connected clients. Failures, no-op writes, and idempotent replays emit nothing. Socket events never accept domain writes.
 
-`GET /api/sync` returns both persisted revisions in one SQLite read and disables caching. Clients compare stream revisions and refetch authoritative HTTP snapshots to repair missed or duplicate notifications. In-memory connection recovery defaults to two minutes; `SOCKET_RECOVERY_MS=0` disables it. Recovery cannot survive a backend restart, while SQLite revisions do. The Angular singleton socket service, revision tracking, focus/reconnect checks, and 15-second sync scheduling belong to T09. See [T08 verification](docs/t08-verification.md) for real-client, rollback, restart, event-loss, and browser proxy evidence.
+`GET /api/sync` returns both persisted revisions in one SQLite read and disables caching. Clients compare stream revisions and refetch authoritative HTTP snapshots to repair missed or duplicate notifications. In-memory connection recovery defaults to two minutes; `SOCKET_RECOVERY_MS=0` disables it. Recovery cannot survive a backend restart, while SQLite revisions do. The Angular singleton socket service tracks highest revisions, checks on reconnect/focus/every 15 seconds, and invalidates active feature stores. Cancelled or obsolete HTTP responses cannot replace newer query/revision state; failed refreshes retain displayed content and provide retry controls. The connection indicator opens a keyboard-accessible details dialog. See [T09 verification](docs/t09-verification.md). See [T08 verification](docs/t08-verification.md) for real-client, rollback, restart, event-loss, and browser proxy evidence.
 
 ## Backend lifecycle and health
 
@@ -111,6 +111,6 @@ Import shared code through `@restaurant-ordering/contracts`. Nx tags enforce pro
 
 Exact direct dependency versions live in `package.json`; `pnpm-lock.yaml` pins transitive dependencies. The resolved toolchain is Angular/CLI/Material/CDK **22.2.3**, Nx and all `@nx/*` packages **23.3.0**, NgRx Signals **22.0.1**, TypeScript **6.0.3**, RxJS **7.8.2**, Express **5.3.0**, Vitest **5.0.5**, Playwright **1.64.1**, ESLint **10.13.0**, and better-sqlite3 **13.0.3**. Installation enforces engines and strict peers. `pnpm-workspace.yaml` explicitly allows only the required dependency build scripts.
 
-The placeholder production frontend totals **93.65 kB raw / 28.34 kB estimated transfer**. Angular enforces initial bundle warning/error limits of **350/500 kB** and per-component stylesheet limits of **4/8 kB**. These are a foundation baseline; measure again when Material and feature routes are implemented.
+The T09 production frontend initial bundle totals **520.72 kB raw / 132.31 kB estimated transfer**, with lazy feature routes and connection dialog. Angular enforces initial bundle warning/error limits of **550/600 kB** and per-component stylesheet limits of **4/8 kB**. [T09 verification](docs/t09-verification.md#production-bundle-investigation) records the baseline, removal of unused Zod exports/locales, and the change from T01’s placeholder budgets.
 
 See [T01 verification](docs/t01-verification.md) for compatibility sources, actual checks, and native-driver results. [Architecture and backlog](docs/README.md) describe the remaining work. Docker startup becomes available in T14.

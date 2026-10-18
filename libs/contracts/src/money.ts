@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { MAX_UNIT_PRICE_MINOR, moneyMinorSchema, quantitySchema, unitPriceMinorSchema } from './common';
 
 // Length bounds prevent huge form strings from reaching BigInt. Leading zeroes are allowed.

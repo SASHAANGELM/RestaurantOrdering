@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 export const CURRENCY = 'USD';
 export const MAX_UNIT_PRICE_MINOR = 1_000_000;

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import {
   entityRevisionSchema, idSchema, MAX_CART_LINES, MAX_PAGE_SIZE, paginationQueryShape,
   paginationShape, revisionSchema, timestampSchema

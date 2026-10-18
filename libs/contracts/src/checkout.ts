@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import {
   currencySchema, entityRevisionSchema, idSchema, MAX_CART_LINES, moneyMinorSchema,
   nameSchema, pricingModeSchema, quantitySchema, revisionSchema, timestampSchema, unitPriceMinorSchema

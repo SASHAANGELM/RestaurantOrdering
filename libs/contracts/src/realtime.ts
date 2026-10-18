@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { entityRevisionSchema, idSchema, revisionSchema, syncStateSchema } from './common';
 
 export const menuChangedSchema = z.strictObject({

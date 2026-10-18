@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01–T08 complete; T09–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T09 complete; T10–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -93,11 +93,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
 ## Frontend workflows
 
-- [ ] **T09 — Implement Angular shell and client adapters**
+- [x] **T09 — Implement Angular shell and client adapters**
 
   Add lazy Menu/Setup/Orders/detail routes, Material theme/navigation, HttpClient API adapters, singleton socket service, and feature SignalStores. Implement connection indicators, request cancellation, error handling, highest-revision tracking, reconnect/focus/15-second sync checks, and listener teardown.
 
   Acceptance: one socket exists across route changes; no event listener leaks; a late response cannot replace newer query/revision state. Cached content survives disconnects; synchronization is visible. Material dialogs/forms have labels, keyboard support, and correct focus handling. No auth controls are added.
+
+  Completed 2026-10-18. See [verification results](t09-verification.md). Added the lazy Material shell, validated same-origin HTTP adapters, one root socket/sync service, route-owned SignalStores, cancellation/revision guards, visible recovery states, and an accessible connection dialog. All 25 frontend, 320 backend, and 75 contract tests passed with uncached `pnpm check`, including both production builds. All five Chromium tests passed, including one socket across navigation, keyboard/focus behavior, real two-context store updates, offline recovery, and deep links. Recorded and optimized the production bundle baseline; editing/cart/checkout/status UI remain T10–T13.
 
 - [ ] **T10 — Implement Setup UI**
 
