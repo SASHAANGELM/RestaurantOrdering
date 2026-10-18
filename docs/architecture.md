@@ -1,6 +1,6 @@
 # Architecture
 
-Status: ready for implementation. Product decisions are recorded in [README](README.md). See [contracts](contracts.md) for request/event details and [tasks](tasks/README.md) for work items.
+Status: implemented prototype; current verification is recorded in the task index. Product decisions are recorded in [README](README.md). See [contracts](contracts.md) for request/event details and [tasks](tasks/README.md) for work items.
 
 ## 1. Goals and boundaries
 
@@ -32,27 +32,27 @@ flowchart TB
 | Backend | Express 5.x, TypeScript strict mode, Zod validation | Small HTTP server with runtime-validated boundaries. |
 | Persistence | Drizzle ORM + Drizzle Kit + better-sqlite3 | Typed queries, checked-in migrations, synchronous short SQLite transactions. |
 | Realtime | Socket.IO 4.x server/client, matching compatible versions | Reconnection and transport fallback, with application-level resynchronization. |
-| Verification | Vitest; Supertest; Playwright E2E; ESLint | Unit/component tests, real-database HTTP tests, and two-browser flows. |
+| Verification | Vitest; real HTTP/fetch integration; Playwright E2E; ESLint | Unit/component tests, real-database HTTP tests, and two-browser flows. |
 | Runtime | Node.js 24 LTS line, compatible pinned patch | One Node version for local tooling and backend images; verify native SQLite addon support. |
 | Deployment | Docker Compose, Nginx frontend + Node backend | Two independently built images, one browser origin, persistent database. |
 
-At the research date Angular's official release page identifies Angular 22 as the active major. Choose the **latest stable release available when T01 runs**, not a prerelease. Resolve compatible Nx, Angular CLI/Material/CDK, NgRx, TypeScript, RxJS, Vitest integration, Node, and SQLite-driver versions together. Record exact resolved versions in the lockfile, `packageManager`, Node version file, and README. Keep all `nx`/`@nx/*` packages aligned. Do not bypass peer dependency checks. If the latest Angular lacks a supported peer, record the concrete conflict and resolve it before feature work instead of silently downgrading Angular.
+T01 resolved and pinned compatible versions; exact dependencies are in `package.json` and `pnpm-lock.yaml`, with Node/pnpm pins in the root README and version files. All Nx packages are aligned and installation enforces peer dependencies. Version research and compatibility evidence are historical in [T01 verification](tasks/t01-scaffold-nx-workspace-and-quality-commands.md#verification); these pins are not a claim about today's latest releases.
 
 Sources: [Angular release policy](https://angular.dev/reference/releases), [Angular runtime/compiler compatibility](https://angular.dev/reference/versions), [Nx/Angular compatibility](https://nx.dev/docs/kb/angular-nx-version-matrix), [Nx Angular plugin alignment](https://nx.dev/docs/technologies/angular/introduction), [NgRx SignalStore](https://ngrx.io/guide/signals), [Drizzle SQLite drivers](https://orm.drizzle.team/docs/sqlite/get-started-sqlite), [Node release status](https://nodejs.org/en/about/previous-releases), [Express 5 API/runtime requirements](https://expressjs.com/en/5x/api/).
 
 ## 3. Repository layout and boundaries
 
-Target layout. T01 created the apps/contracts projects and toolchain configuration; T02 implemented the shared schemas, DTOs, errors, event maps, and money helpers. T03 added the database schema, migration runner/assets, seeds, and startup initialization. T04 added the app factory, validated configuration, common middleware, and server lifecycle. T05 added the menu router, mutation services, and transactional queries. T06 added the checkout quote router and transactional quote service. Remaining feature folders and deployment files arrive in later tasks:
+Implemented layout (supporting tests/configuration omitted):
 
 ```text
 apps/
   frontend/
     src/app/
       core/                 # HTTP client, realtime service, app config
-      shared/ui/            # Small reusable presentational components
+      shared/               # Connection dialog and shared presentation
       features/
-        menu/               # Menu page and MenuStore
-        cart/               # CartStore, cart UI, checkout review
+        menu/               # MenuStore, CartStore, cart UI and browsing
+        checkout/           # Quote review, pending confirmation recovery
         setup/              # SetupStore and configuration forms
         orders/             # OrdersStore, list/detail/status controls
     proxy.conf.json
@@ -67,8 +67,8 @@ apps/
       db/                   # Schema, connection, migrations runner, seed
       modules/
         menu/               # Router, service, queries
-        checkout/           # Quotes, validation, idempotent commit
-        orders/             # Queries and status transitions
+        checkout/           # Quotes and authoritative validation
+        orders/             # Idempotent commit, queries, status transitions
         realtime/           # Socket.IO lifecycle and notifications
       middleware/           # Validation, request IDs, error mapping
     drizzle/                # Generated, reviewed SQL migrations
@@ -96,7 +96,7 @@ Routes: `/menu` (default), `/setup`, `/orders`, and `/orders/:id`. Lazy-load eac
 | State owner | Contents and lifetime |
 | --- | --- |
 | MenuStore | Current search/category/page, bounded item entities, categories, menu revision, loading/errors. |
-| CartStore | Line intent, quantity, observed item version/price, open price, discount, quote, pending checkout attempt. Root-scoped. |
+| CartStore / CheckoutStore | CartStore owns line intent, quantity, observed item version/price, open price, and discount; CheckoutStore owns quote review and pending confirmation recovery. Both root-scoped. |
 | SetupStore | Current page of configuration data, form submission state, version-conflict messages. Route-scoped. |
 | OrdersStore | Current page/filter, visible order versions, order-stream revision, selected order, loading/errors. Route-scoped. |
 | Realtime service | One application-wide socket; typed observable events and connection state. No second copy of business entities. |
@@ -166,7 +166,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-T01 provides `pnpm install --frozen-lockfile` and `pnpm dev` with the Angular dev proxy. T03 added migration/seed initialization before listening; T04 implemented configuration validation, health checks, error handling, and graceful shutdown, including a lifecycle hook for T08's Socket.IO server. T14 adds Docker startup and an isolated `pnpm docker:smoke` deployment test. Defaults require no `.env` copy; the root README and `.env.example` document optional settings. Local DB files and `.env` stay outside version control and are excluded from Docker build contexts.
+T01 provides `pnpm install --frozen-lockfile` and `pnpm dev` with the Angular dev proxy. T03 added migration/seed initialization before listening; T04 implemented configuration validation, health checks, error handling, and graceful shutdown, including a lifecycle hook for T08's Socket.IO server. T14 added Docker startup and an isolated `pnpm docker:smoke` deployment test. Defaults require no `.env` copy; the root README and `.env.example` document optional settings. Local DB files and `.env` stay outside version control and are excluded from Docker build contexts.
 
 ## 8. Trade-offs and production follow-up
 

@@ -1,6 +1,10 @@
 # Restaurant Ordering
 
-Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. The frontend provides a lazy Material shell, validated HTTP adapters, NgRx SignalStores, one shared socket, visible synchronization/recovery, Setup forms with archive/conflict recovery, and a paged Menu with a persistent per-tab cart, open prices, discounts, live estimates, and explicit quote review/confirmation with persisted checkout recovery. The backend provides SQLite persistence, health/lifecycle handling, menu APIs, authoritative quotes, idempotent orders/recovery, manual statuses, and persisted revision synchronization. See the [task index](docs/tasks/README.md) for implementation and verification status.
+A restaurant ordering prototype with three live views: **Setup** manages categories, prices, and availability; **Menu** builds a cart and reviews server-calculated totals before confirmation; **Orders** shows immutable order details and manual kitchen statuses. Separate browsers see committed changes without reloading.
+
+Angular Material/CDK and NgRx SignalStore run in an Nx workspace alongside Express, Socket.IO, SQLite/Drizzle, and framework-neutral Zod contracts. This is a shared demonstration: every visitor can edit the menu, see every order, and change statuses. Use a controlled environment until access control is added.
+
+Start with either path below from the repository root. No payments, accounts, or inventory reservations are implemented. See [architecture](docs/architecture.md), [HTTP/realtime contracts](docs/contracts.md), and the [task index](docs/tasks/README.md) for design and verification evidence.
 
 ## Docker
 
@@ -20,14 +24,14 @@ With the local toolchain and Playwright Chromium installed, `pnpm docker:smoke` 
 
 ## Local development
 
-Use **Node.js 24.22.0** (`.nvmrc` / `.node-version`) and **pnpm 12.14.0**. With a Node version manager, select the repository version first (`nvm install && nvm use` for nvm). Install pnpm if needed with `npm install --global pnpm@12.14.0`.
+Use **Node.js 24.22.0** (`.nvmrc` / `.node-version`) and **pnpm 12.14.0**. With a Node version manager, select the repository version first (`nvm install && nvm use` for nvm). Install pnpm if needed with `npm install --global pnpm@12.14.0`. Confirm `node --version` and `pnpm --version` match the pins before installing. Native SQLite installation may need Python 3 and a C/C++ build toolchain (Xcode Command Line Tools on macOS; Python 3, make, and g++ on Linux). Ports 3000 and 4200 must be free.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api> and responds with `{"name":"Restaurant Ordering API"}`. Angular proxies relative `/api` and `/api/**` requests to that backend. `/socket.io` and `/socket.io/**` proxy HTTP polling and WebSocket upgrades to the same backend listener. Stop both apps with Ctrl+C. No environment file is needed. Before listening, the backend creates `data/restaurant.sqlite`, applies checked-in migrations, and seeds a small demo menu only if the database is empty and has never been initialized.
+Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api> and responds with `{"name":"Restaurant Ordering API"}`. Angular proxies relative `/api` and `/api/**` requests to that backend. `/socket.io` and `/socket.io/**` proxy HTTP polling and WebSocket upgrades to the same backend listener. Stop both apps with Ctrl+C. No environment file is needed; local Node commands read exported environment variables, and do not automatically load `.env`. Compose reads `.env` for its documented substitutions. Before listening, the backend creates `data/restaurant.sqlite`, applies checked-in migrations, and seeds a small demo menu only if the database is empty and has never been initialized.
 
 ## Commands
 
@@ -72,7 +76,7 @@ DATABASE_PATH=data/large.sqlite SEED_MODE=large pnpm dev
 
 Use a new path for a fresh fixture. Deleting a local database and its SQLite sidecars permanently removes that file's orders and configuration; stop the backend before any intentional reset. `data/`, SQLite files, and sidecars are ignored by Git. Tests create and remove their own OS temporary files.
 
-The persistence helpers include expiry cleanup that retains quotes referenced by orders. T05 implements menu HTTP APIs and shared item/category eligibility reads; T06 implements persisted quote preparation; T07 implements quote confirmation, order APIs, and status rules using the schema's unique key/quote constraints. T08 broadcasts committed changes and exposes persisted revisions for recovery. See [T03 verification](docs/tasks/t03-implement-schema-migrations-and-seeds.md#verification) for demonstrated persistence behavior.
+The persistence helpers include expiry cleanup that retains quotes referenced by orders; no scheduled cleanup job is configured. Menu reads, persisted quotes, unique order key/quote constraints, and persisted stream revisions share this database. See [T03 verification](docs/tasks/t03-implement-schema-migrations-and-seeds.md#verification) for demonstrated persistence behavior.
 
 ## Menu configuration and queries
 
@@ -133,6 +137,39 @@ Import shared code through `@restaurant-ordering/contracts`. Nx tags enforce pro
 
 Exact direct dependency versions live in `package.json`; `pnpm-lock.yaml` pins transitive dependencies. The resolved toolchain is Angular/CLI/Material/CDK **22.2.3**, Nx and all `@nx/*` packages **23.3.0**, NgRx Signals **22.0.1**, TypeScript **6.0.3**, RxJS **7.8.2**, Express **5.3.0**, Vitest **5.0.5**, Playwright **1.64.1**, ESLint **10.13.0**, and better-sqlite3 **13.0.3**. Installation enforces engines and strict peers. `pnpm-workspace.yaml` explicitly allows only the required dependency build scripts.
 
-The T12 production frontend initial bundle totals **560.37 kB raw / 141.38 kB estimated transfer**, with lazy feature routes and connection dialog. This build succeeds with a **10.37 kB warning** over the existing 550 kB warning threshold; the 600 kB error limit is unchanged. See [T12 verification](docs/tasks/t12-implement-review-confirmation-and-recovery-ui.md#verification). The earlier T09 baseline was **520.72 kB raw / 132.31 kB estimated transfer**. Angular enforces initial bundle warning/error limits of **550/600 kB** and per-component stylesheet limits of **4/8 kB**. [T09 verification](docs/tasks/t09-implement-angular-shell-and-client-adapters.md#production-bundle-investigation) records the baseline, removal of unused Zod exports/locales, and the change from T01’s placeholder budgets.
+The verified production frontend initial bundle is **568.68 kB raw / 143.64 kB estimated transfer**, with lazy feature routes. It exceeds the 550 kB warning budget by **18.68 kB** and stays below the unchanged 600 kB error budget. Per-component stylesheet warning/error limits are 4/8 kB. See [T15 measurements](docs/tasks/t15-complete-reliability-performance-and-ci-verification.md#production-large-menu-measurements) for the production performance profile and limits.
 
-See [T01 verification](docs/tasks/t01-scaffold-nx-workspace-and-quality-commands.md#verification) for compatibility sources, actual checks, and native-driver results. [Architecture and backlog](docs/README.md) describe the remaining work. [T14 verification](docs/tasks/t14-implement-two-service-docker-deployment.md#verification) records deployment checks.
+## Two-browser demonstration
+
+Use the default small seed on a fresh database, or create the named items below in Setup if using an existing database. Open two independent browser profiles/windows at the same frontend origin: staff **A** at `/setup`, customer **B** at `/menu`. Keep B open throughout; do not duplicate its tab to create another cart.
+
+1. In A, edit **Soup** to fixed price **3.00**, available; keep **Seasonal special** open-price and available. Use Search items and Apply filters to locate each item in Setup. In B, search for Soup, add quantity **2**, then search for Seasonal special and add quantity **1** at **5.00**. Set the fixed discount to **1.00**. The cart estimate is **10.00 USD**.
+2. In A, change Soup to **4.00** and save. B's Menu updates live; the cart retains intent and flags the change. Select **Review order** in B. The authoritative review shows the changed price and **12.00 USD** total (8.00 + 5.00 − 1.00). No order exists yet.
+3. Before confirming, uncheck **Available for ordering** for Soup in A and save. B must review again; unavailable Soup prevents checkout. Restore availability in A, then select Review order in B again. Confirm only after reading the current lines and total.
+4. Select **Confirm order** once, then **Open confirmed order**. Reload that detail URL: the same order remains. In A, open Orders, locate that ID, open it, and use **Start preparing**, **Mark ready**, then **Complete order**. B sees each status live. Orders retain their original names/prices if Setup changes later. Cancellation is available only while placed or preparing.
+5. For connection recovery with Docker, return B to Menu and add Soup to a new cart. Run `docker compose stop backend`. The connection indicator reports disconnection; cached content and cart remain. Run `docker compose up -d backend`: the indicator reconnects and HTTP reads reconcile. The previous order remains in Orders. `docker compose up -d --force-recreate backend` also preserves it. For local development, stop with Ctrl+C and restart `pnpm dev` using the same database path.
+6. Optional editor conflict: open the same item's edit dialog in both A and B before either saves. Save a change in A, then save a different draft in B. B retains its input and reports a revision conflict. **Reload latest values** explicitly replaces the draft; review before saving again.
+
+A real commit followed by a lost HTTP response requires controlled fault injection. The [checkout E2E](apps/frontend-e2e/src/checkout.spec.ts) commits before aborting the response, reloads the pending checkout, and verifies same-key recovery creates one order. If the UI shows **Pending checkout**, use **Check order outcome** or **Retry same checkout**; keep its recovery key and frozen payload. A missing lookup does not prove the original request cannot still commit. The [reliability E2E](apps/frontend-e2e/src/reliability.spec.ts) demonstrates committed changes with deliberately omitted broadcasts, repaired by normal periodic/focus synchronization. These test controls are excluded from production.
+
+## Decisions and deliberate simplifications
+
+- **Single backend and local SQLite:** short synchronous transactions and unique key/quote constraints make confirmation atomic and persistent without another service. One writer and local disk suit this prototype; horizontal replicas and shared network filesystems need a different persistence/deployment design.
+- **HTTP writes and Socket.IO hints:** clients always recover authoritative snapshots using persisted revisions. This keeps reconnect/restart behavior explicit without a durable broker/outbox. Lost notifications can delay freshness by the 15-second sync interval plus request time.
+- **Conservative checkout:** every menu revision change invalidates outstanding uncommitted quotes, even for unrelated items. Quotes expire after five minutes and reserve no stock. Persistent idempotency protects retries of the same attempt; a deliberately new quote/key can create another order.
+- **Integer USD cents:** fixed/open prices and fixed discounts use exact validation and safe arithmetic. Zero totals are allowed; taxes, tips, currency conversion, payments/refunds, and inventory counts are outside scope.
+- **Per-tab cart:** validated session storage preserves drafts and unresolved attempts across reloads. It does not provide accounts, cross-device carts, or recovery after the tab/storage is lost. Staff statuses are manual; no kitchen automation is included.
+- **Bounded client rendering:** server pagination (50 by default, 100 maximum), debounced search, lazy routes, and a stable scrollable Menu panel keep a 5,000-item menu usable. SSR, images/uploads, and virtual scrolling are deferred. NgRx SignalStore keeps feature state compact; Nx adds tooling in exchange for enforced boundaries and shared checks.
+- **Shared demonstration access:** no authentication, authorization, customer ownership, delivery details, or tenant isolation. Archives retain historical data and cannot be undone through this prototype.
+
+## Production follow-up
+
+Before public use, add staff roles and customer order ownership, TLS and protected network ingress, abuse/rate limits, secret management, and security review. Define payment, stock reservation, cancellation/refund, tax, and privacy/retention policies before extending checkout.
+
+Add monitored backups with demonstrated restores, migration rollback/recovery procedures, storage capacity alerts, structured metrics/tracing and operational alerts, and a durable notification/outbox strategy if delivery guarantees require it. Load-test expected traffic and contention before choosing database scaling or multiple replicas. Address the bundle warning and validate accessibility, physical low-end phones, other browser engines, and Linux AMD64. CI is configured, but a hosted run and external deployment have not been demonstrated.
+
+## Validation and handoff
+
+[T15](docs/tasks/t15-complete-reliability-performance-and-ci-verification.md#verification) records the 2026-10-18 application baseline: **119 frontend + 320 backend + 75 contract tests**, both production builds, **19 Chromium E2E scenarios**, **2 large-menu scenarios**, and the isolated two-service Docker smoke test passed. Its emulated mobile profile measured 54.6 ms Add feedback, CLS 0.0789, and 50 rendered rows; normal local live changes appeared within 31 ms and omitted broadcasts recovered in about 15 seconds. These are lab samples, not field guarantees. [T16](docs/tasks/t16-complete-readme-and-handoff.md#verification) records fresh handoff validation separately.
+
+The repository preserves incremental local commits for contracts/persistence, APIs, safe checkout, realtime, frontend flows, deployment, and verification (`git log --oneline`). Publication, pushing, and external deployment are separate actions and have not been performed for this handoff. [Documentation](docs/README.md) links the original assignment, implementation plan, architecture, contracts, and task evidence.

@@ -1,6 +1,6 @@
 # Implementation plan
 
-Build the agreed architecture in small runnable increments. The task table is in [the task index](tasks/README.md); API and recovery details are in [contracts.md](contracts.md). T01–T12 are complete; see the verification sections in the task files linked from [tasks](tasks/README.md), including [menu/cart verification](tasks/t11-implement-menu-cart-and-large-menu-behavior.md#verification) and [review/recovery verification](tasks/t12-implement-review-confirmation-and-recovery-ui.md#verification). T13–T16 remain unimplemented.
+Build the agreed architecture in small runnable increments. The task table and current status are in [the task index](tasks/README.md); API and recovery details are in [contracts.md](contracts.md). T01–T16 are complete, including application verification and the final README/handoff. See [T15 verification](tasks/t15-complete-reliability-performance-and-ci-verification.md#verification) for the application baseline and [T16](tasks/t16-complete-readme-and-handoff.md) for handoff results. The schedule below is the original delivery plan.
 
 ## 1. Milestones and sequencing
 
@@ -57,7 +57,7 @@ pnpm build        # production builds for both apps
 pnpm e2e          # starts isolated test apps and runs Playwright
 pnpm check        # lint + typecheck + test + build
 pnpm db:migrate
-pnpm db:seed      # explicit, idempotent demo initialization
+pnpm db:seed:small # explicit, idempotent demo initialization
 pnpm db:seed:large
 ```
 
