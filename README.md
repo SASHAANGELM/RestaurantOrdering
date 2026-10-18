@@ -1,6 +1,6 @@
 # Restaurant Ordering
 
-Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T03 are implemented.** The apps currently serve workspace placeholders; the backend now initializes SQLite persistence. Ordering workflows, realtime behavior, and Docker deployment are later [tasks](docs/tasks.md).
+Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T04 are implemented.** The frontend currently serves a workspace placeholder; the backend initializes SQLite persistence and provides validated configuration, health checks, common errors, and graceful shutdown. Ordering workflows, realtime behavior, and Docker deployment are later [tasks](docs/tasks.md).
 
 ## Local development
 
@@ -20,7 +20,7 @@ Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api>
 | `pnpm dev` | Watch and serve frontend and backend together. |
 | `pnpm lint` | ESLint, Angular template accessibility, and Nx import boundaries. |
 | `pnpm typecheck` | Strict TypeScript for all four projects, plus Angular template checking. |
-| `pnpm test` | Contract/money boundaries, browser/server contract consumers, and isolated real-file persistence tests. |
+| `pnpm test` | Contract/money boundaries, browser/server contract consumers, isolated persistence and HTTP/lifecycle tests. |
 | `pnpm build` | Production frontend/backend builds and contracts declarations in `dist/`. |
 | `pnpm check` | Lint, typecheck, test, and build sequentially. |
 | `pnpm e2e` | Chromium smoke test using its own frontend/backend servers. Stop `pnpm dev` first. |
@@ -53,6 +53,25 @@ DATABASE_PATH=data/large.sqlite SEED_MODE=large pnpm dev
 Use a new path for a fresh fixture. Deleting a local database and its SQLite sidecars permanently removes that file's orders and configuration; stop the backend before any intentional reset. `data/`, SQLite files, and sidecars are ignored by Git. Tests create and remove their own OS temporary files.
 
 The persistence helpers include expiry cleanup that retains quotes referenced by orders. Quote snapshot validation, eligibility checks, HTTP APIs, status rules, and post-commit notifications are implemented in later tasks; the schema supplies their constraints and storage. See [T03 verification](docs/t03-verification.md) for demonstrated persistence behavior.
+
+## Backend lifecycle and health
+
+The backend validates settings before opening SQLite or binding HTTP. All settings are optional:
+
+| Setting | Default | Accepted values |
+| --- | --- | --- |
+| `HOST` | `127.0.0.1` | IP address or hostname; use `0.0.0.0` for a container. |
+| `PORT` | `3000` | Integer 1–65,535. |
+| `DATABASE_PATH` | `data/restaurant.sqlite` | Nonempty file path or `:memory:`. |
+| `SEED_MODE` | `small` | `none`, `small`, or `large`. |
+| `JSON_BODY_LIMIT_BYTES` | `65536` | Integer 1–1,048,576. |
+| `SHUTDOWN_TIMEOUT_MS` | `10000` | Integer 1–60,000. |
+
+`GET /api/health/live` returns `200 {"status":"live"}` while the process serves HTTP. `GET /api/health/ready` returns `200 {"status":"ready"}` after migration/initialization and a successful database probe, or a retryable `503` when the database is inaccessible, initialization records are missing, or shutdown has begun. Health responses disable caching. Configuration, migration, and listener failures log their startup stage and exit unsuccessfully.
+
+Every Express response includes a generated UUID `X-Request-Id`; client-supplied IDs are ignored. Errors use the shared error envelope with that same ID. Unknown endpoints return JSON `404`; malformed/oversized JSON and schema validation failures return `400 VALIDATION_ERROR`. JSON compression is disabled. SQLite busy/locked errors, including wrapped driver errors, return `503 SERVICE_UNAVAILABLE`, `Retry-After: 1`, and `retryAfterMs: 1000`. Unexpected errors return a generic `500`; correlated internal diagnostics stay in server logs. No cross-origin grants are enabled; browsers use the frontend proxy.
+
+SIGINT/SIGTERM stop HTTP intake, reject new work on remaining connections, wait for active HTTP requests and registered socket cleanup, then close SQLite. The shutdown deadline forces remaining HTTP/upgraded connections closed and reports failure. The Socket.IO lifecycle attachment is ready for T08; no realtime server runs yet. See [T04 verification](docs/t04-verification.md) for test evidence.
 
 ## Workspace and toolchain
 

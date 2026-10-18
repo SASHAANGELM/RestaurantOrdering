@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01–T03 complete; T04–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T04 complete; T05–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -49,11 +49,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
   Completed 2026-10-18. See [verification results](t03-verification.md) and [database commands](../README.md#database). Added 51 real-file persistence tests; all 128 unit tests, uncached frontend/backend builds, root quality checks, frozen install, migration checks, compiled startup/restart smoke, and existing Chromium E2E test pass.
 
-- [ ] **T04 — Implement Express lifecycle and common errors**
+- [x] **T04 — Implement Express lifecycle and common errors**
 
   Separate testable app construction from startup. Add config validation, bounded JSON bodies, runtime request validation, request IDs, structured error mapping, health endpoints, and graceful HTTP/socket/DB shutdown. Migrate before readiness; no broad cross-origin access is needed with the dev/reverse proxies.
 
   Acceptance: configuration/migration failures fail startup clearly; ready/live endpoints behave as designed; unexpected exceptions do not expose internals; SQLite lock errors become retryable responses. Integration tests use isolated databases and no real development data.
+
+  Completed 2026-10-18. See [verification results](t04-verification.md) and [backend lifecycle/settings](../README.md#backend-lifecycle-and-health). Added 57 backend tests; all 185 unit tests, uncached root quality checks and frontend/backend production builds, compiled configuration/migration/signal/restart smoke checks, and the existing Chromium E2E test pass. Socket.IO transport implementation remains T08; its lifecycle attachment and forced upgraded-connection cleanup are covered here.
 
 ## Backend workflows
 

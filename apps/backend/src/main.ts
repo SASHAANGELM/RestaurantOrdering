@@ -1,23 +1,22 @@
-import express from 'express';
 import { resolve } from 'node:path';
-import { DEFAULT_DATABASE_PATH } from './db/connection';
-import { initializeDatabase } from './db/initialize';
-import { parseSeedMode } from './db/seed';
+import { loadConfig } from './config/config';
+import { startServer } from './server';
 
-const connection = initializeDatabase({
-  filename: process.env['DATABASE_PATH'] ?? DEFAULT_DATABASE_PATH,
-  migrationsFolder: resolve(__dirname, 'drizzle'),
-  seedMode: parseSeedMode(process.env['SEED_MODE'] ?? 'small')
-});
-process.once('exit', () => connection.close());
+async function main() {
+  const config = loadConfig(process.env);
+  const runtime = await startServer(config, { migrationsFolder: resolve(__dirname, 'drizzle') });
+  const onSignal = () => {
+    void runtime.shutdown().catch((error: unknown) => {
+      console.error({ event: 'shutdown.failed', error });
+      process.exitCode = 1;
+    });
+  };
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
+  console.info({ event: 'server.listening', address: runtime.server.address() });
+}
 
-const app = express();
-
-app.disable('x-powered-by');
-app.get('/api', (_request, response) => {
-  response.json({ name: 'Restaurant Ordering API' });
-});
-
-app.listen(3000, '127.0.0.1', () => {
-  console.info('Restaurant Ordering API listening on http://127.0.0.1:3000/api');
+void main().catch((error: unknown) => {
+  console.error({ event: 'startup.failed', error });
+  process.exitCode = 1;
 });

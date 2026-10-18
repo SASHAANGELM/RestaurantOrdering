@@ -42,7 +42,7 @@ Sources: [Angular release policy](https://angular.dev/reference/releases), [Angu
 
 ## 3. Repository layout and boundaries
 
-Target layout. T01 created the apps/contracts projects and toolchain configuration; T02 implemented the shared schemas, DTOs, errors, event maps, and money helpers. T03 added the database schema, migration runner/assets, seeds, and startup initialization. Feature folders and deployment files arrive in later tasks:
+Target layout. T01 created the apps/contracts projects and toolchain configuration; T02 implemented the shared schemas, DTOs, errors, event maps, and money helpers. T03 added the database schema, migration runner/assets, seeds, and startup initialization. T04 added the app factory, validated configuration, common middleware, and server lifecycle. Feature folders and deployment files arrive in later tasks:
 
 ```text
 apps/
@@ -60,7 +60,8 @@ apps/
     nginx.conf
   backend/
     src/
-      main.ts               # Startup, migrations, shutdown
+      main.ts               # Environment, startup logging, process signals
+      server.ts             # Migrations, HTTP/socket lifecycle, bounded shutdown
       app.ts                # Express app factory for tests
       config/
       db/                   # Schema, connection, migrations runner, seed
@@ -165,7 +166,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-T01 provides `pnpm install --frozen-lockfile` and `pnpm dev` for both placeholder apps with the Angular dev proxy. T03 adds migration/seed initialization before listening; T04 adds full configuration validation, health checks, error handling, and graceful shutdown. Docker startup remains T14. Defaults require no `.env` copy; `.env.example` will document optional port/path/seed overrides. Local DB files and `.env` stay outside version control and will be excluded from Docker build contexts.
+T01 provides `pnpm install --frozen-lockfile` and `pnpm dev` with the Angular dev proxy. T03 added migration/seed initialization before listening; T04 implemented configuration validation, health checks, error handling, and graceful shutdown, including a lifecycle hook for T08's Socket.IO server. Docker startup remains T14. Defaults require no `.env` copy; the root README documents settings and `.env.example` will accompany deployment. Local DB files and `.env` stay outside version control and will be excluded from Docker build contexts.
 
 ## 8. Trade-offs and production follow-up
 

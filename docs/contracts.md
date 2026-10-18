@@ -1,6 +1,6 @@
 # HTTP, checkout, and realtime contracts
 
-Runtime schemas, inferred DTOs, money helpers, and event maps are implemented in `libs/contracts` (T02). The HTTP endpoints and Socket.IO server below remain target behavior for later tasks; the backend remains authoritative.
+Runtime schemas, inferred DTOs, money helpers, and event maps are implemented in `libs/contracts` (T02). T04 implements the health endpoints and common HTTP validation/error boundary. Domain endpoints and the Socket.IO server below remain target behavior for later tasks; the backend remains authoritative.
 
 ## 1. Common rules
 
@@ -56,7 +56,11 @@ Import from `@restaurant-ordering/contracts`. Public schemas use camelCase names
 | `SERVICE_UNAVAILABLE` | 503 | `{ retryAfterMs }` |
 | `INTERNAL_ERROR` | 500 | No details field; internal exceptions are never public DTOs. |
 
-Cart issue codes are `ITEM_MISSING`, `ITEM_ARCHIVED`, `CATEGORY_ARCHIVED`, `ITEM_UNAVAILABLE`, `OPEN_PRICE_REQUIRED`, and `FIXED_PRICE_OVERRIDE`. Quote preparation uses them to identify lines requiring correction; changed fixed prices/revisions/names instead appear as visible review changes for valid carts. Excessive discounts use the separate discount error. These are contracts for future error middleware/services, not implemented HTTP handlers.
+Cart issue codes are `ITEM_MISSING`, `ITEM_ARCHIVED`, `CATEGORY_ARCHIVED`, `ITEM_UNAVAILABLE`, `OPEN_PRICE_REQUIRED`, and `FIXED_PRICE_OVERRIDE`. Quote preparation uses them to identify lines requiring correction; changed fixed prices/revisions/names instead appear as visible review changes for valid carts. Excessive discounts use the separate discount error. T04 implements the common error mapper; these domain conditions are emitted by services in later tasks.
+
+T04's HTTP boundary generates a UUID `X-Request-Id` for each request and repeats it in errors. `validateRequest(schema, value, source)` returns parsed values without mutating Express request objects; validation issue paths begin with `body`, `query`, `params`, or `headers`. The JSON limit defaults to 65,536 bytes; malformed, oversized, or compressed JSON uses `400 VALIDATION_ERROR` to preserve the shared status mapping. Unknown endpoints use `404 NOT_FOUND` with `{ resourceType: 'request', resourceId: requestId }`. SQLite lock contention returns retryable `503 SERVICE_UNAVAILABLE` with `Retry-After: 1` and `{ retryAfterMs: 1000 }`. Unexpected errors expose only `INTERNAL_ERROR`, a generic message, and the request ID.
+
+Both health endpoints disable caching. Liveness returns `{ status: 'live' }` without a database query. Readiness returns `{ status: 'ready' }` only when not shutting down and both the singleton app state and migration journal are accessible and populated. Otherwise it uses the common retryable 503 envelope. Startup completes migrations and optional seeding before binding HTTP.
 
 ## 2. HTTP surface
 
