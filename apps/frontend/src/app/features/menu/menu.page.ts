@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
@@ -35,7 +35,7 @@ import { MenuStore } from './menu.store';
         [stale]="store.items.stale() || store.categories.stale()" [error]="store.items.error() || store.categories.error()" (retry)="reload()" />
       @if (store.items.data(); as page) {
         <p class="muted">{{ page.total }} menu items · Page {{ page.page }}</p>
-        <ul class="data-list menu-list" [attr.aria-busy]="store.items.loading()">
+        <ul #results class="data-list menu-list" aria-label="Menu results" tabindex="0" [attr.aria-busy]="store.items.loading()">
           @for (item of page.items; track item.id) { <li><app-menu-item-row [item]="item" /></li> }
           @empty { <li>No menu items match. Try clearing your filters or add items in Setup.</li> }
         </ul>
@@ -53,7 +53,9 @@ import { MenuStore } from './menu.store';
     .menu-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(17rem, 1fr); gap: 2rem; }
     .heading-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
     section { min-width: 0; } .filters { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    app-load-state { display: flow-root; min-height: 4rem; }
     mat-form-field { flex: 1 1 12rem; min-width: 0; } mat-paginator { background: transparent; }
+    .menu-list { height: clamp(20rem, 70svh, 40rem); overflow-y: auto; }
     .menu-list li { min-height: 10rem; } .skeleton span { width: 100%; height: 5.5rem; background: #e4e9e1; border-radius: .25rem; }
     @media (max-width: 850px) { .menu-layout { grid-template-columns: minmax(0, 1fr); } }
   `]
@@ -61,6 +63,7 @@ import { MenuStore } from './menu.store';
 export class MenuPage {
   readonly store = inject(MenuStore);
   readonly cart = inject(CartStore);
+  private readonly results = viewChild<ElementRef<HTMLUListElement>>('results');
   private readonly destroyRef = inject(DestroyRef);
   readonly skeletons = Array.from({ length: 50 }, (_, index) => index);
   readonly filters = new FormGroup({ search: new FormControl('', { nonNullable: true }), categoryId: new FormControl('', { nonNullable: true }) });
@@ -71,9 +74,14 @@ export class MenuPage {
   applyFilters() {
     const { search, categoryId } = this.filters.getRawValue();
     this.store.setQuery({ ...this.store.query(), page: 1, search: search.trim(), categoryId: categoryId || undefined });
+    this.resetResultsScroll();
   }
   clearFilters() { this.filters.reset(undefined, { emitEvent: false }); this.applyFilters(); }
-  itemPage(event: PageEvent) { this.store.setQuery({ ...this.store.query(), page: event.pageIndex + 1, pageSize: event.pageSize }); }
+  itemPage(event: PageEvent) {
+    this.store.setQuery({ ...this.store.query(), page: event.pageIndex + 1, pageSize: event.pageSize });
+    this.resetResultsScroll();
+  }
+  private resetResultsScroll() { this.results()?.nativeElement.scrollTo({ top: 0 }); }
   firstPage() { this.store.setQuery({ ...this.store.query(), page: 1 }); }
   reload() { this.store.reload(); this.cart.resolved.reload(); }
 }

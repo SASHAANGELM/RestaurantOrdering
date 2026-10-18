@@ -17,10 +17,14 @@ test('real 5,000-item seed stays server-paged, searchable and category-filtered'
   release();
   await expect(menu).toContainText('5000 menu items'); await expect(menu.getByRole('listitem')).toHaveCount(50);
   expect((await menu.getByRole('listitem').first().boundingBox())?.height).toBe(skeletonHeight);
+  const results = menu.getByRole('list', { name: 'Menu results', exact: true });
+  await results.focus(); await page.keyboard.press('PageDown');
+  await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await expect(menu.getByText('Menu item 0017', { exact: true }).locator('..')).toContainText('Unavailable');
   await expect(page.getByRole('button', { name: 'Add Menu item 0017 to cart', exact: true })).toBeDisabled();
   await page.getByLabel('Menu pages', { exact: true }).getByRole('button', { name: 'Next page' }).click();
   await expect(menu).toContainText('Page 2'); await expect(menu.getByRole('listitem')).toHaveCount(50);
+  expect(await results.evaluate((element) => element.scrollTop)).toBe(0);
   await page.getByRole('textbox', { name: 'Search menu' }).fill('Menu item 5000');
   await expect(menu.getByRole('listitem')).toHaveCount(1); await expect(menu).toContainText('Page 1');
   await page.getByRole('button', { name: 'Clear filters', exact: true }).click(); await expect(menu.getByRole('listitem')).toHaveCount(50);

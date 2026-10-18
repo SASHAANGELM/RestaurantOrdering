@@ -51,6 +51,8 @@ test('production containers proxy, persist, shut down cleanly, and recover after
   const missing = await request.get('/api/not-an-endpoint');
   expect(missing.status()).toBe(404);
   expect(missing.headers()['content-type']).toContain('application/json');
+  expect((await request.get('/api/__e2e/omitted')).status()).toBe(404);
+  expect((await request.post('/api/__e2e/omit', { data: { menuId: randomUUID() } })).status()).toBe(404);
   expect((await request.get('/socket.io/?EIO=4&transport=invalid')).status()).toBe(400);
   expect((await request.get('/missing.js')).status()).toBe(404);
   const html = await request.get('/setup');

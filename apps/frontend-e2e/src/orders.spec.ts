@@ -13,16 +13,12 @@ async function itemFixture(request: APIRequestContext) {
   } })).json()).item;
 }
 async function createOrder(request: APIRequestContext, item: MenuItem): Promise<Order> {
-  // Other suites can edit Setup while this isolated in-memory server is shared.
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const quote = quoteResponseSchema.parse(await (await request.post('/api/checkout/quotes', {
-      data: { lines: [{ itemId: item.id, observedRevision: 1, quantity: 2, openPriceMinor: 750 }], discountMinor: 100 }
-    })).json());
-    const response = await request.post('/api/orders', { data: { quoteId: quote.quoteId }, headers: { 'Idempotency-Key': randomUUID() } });
-    if (response.ok()) return orderResponseSchema.parse(await response.json()).order;
-    expect((await response.json()).error.code).toBe('MENU_CHANGED');
-  }
-  throw Error('Concurrent Setup writes prevented fixture confirmation');
+  const quote = quoteResponseSchema.parse(await (await request.post('/api/checkout/quotes', {
+    data: { lines: [{ itemId: item.id, observedRevision: 1, quantity: 2, openPriceMinor: 750 }], discountMinor: 100 }
+  })).json());
+  const response = await request.post('/api/orders', { data: { quoteId: quote.quoteId }, headers: { 'Idempotency-Key': randomUUID() } });
+  expect(response.status()).toBe(201);
+  return orderResponseSchema.parse(await response.json()).order;
 }
 async function change(request: APIRequestContext, order: Order, status: OrderStatus): Promise<Order> {
   const response = await request.patch(`/api/orders/${order.id}/status`, { data: { expectedRevision: order.revision, status } });

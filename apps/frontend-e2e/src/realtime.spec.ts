@@ -52,8 +52,8 @@ test('two browser contexts receive committed notifications through the same-orig
     expect(result.status).toBe(201);
     const committed = categoryMutationResponseSchema.parse(result.body);
     for (const client of [page, second]) {
-      // Other feature tests write to the same isolated server concurrently.
-      // Assert delivery of this commit without assuming it is the only commit.
+      // Earlier scenarios have already advanced this suite-owned database.
+      // Assert this commit without assuming an initial global revision.
       await expect.poll(() => client.evaluate((id) => window.realtimeTest.menus.filter((event) => event.entityId === id).length, committed.category.id)).toBe(1);
       const event = menuChangedSchema.parse(await client.evaluate((id) => window.realtimeTest.menus.find((event) => event.entityId === id), committed.category.id));
       expect(event).toMatchObject({ menuRevision: committed.menuRevision,

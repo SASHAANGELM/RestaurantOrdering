@@ -32,6 +32,6 @@ try {
   console.error(error);
   try { compose(['logs', '--no-color', '--tail', '100']); } catch (logsError) { console.error(logsError); }
 } finally {
-  try { compose(['down', '--volumes', '--remove-orphans', '--timeout', '15']); }
+  try { compose(['down', '--volumes', '--rmi', 'all', '--remove-orphans', '--timeout', '15']); }
   catch (error) { process.exitCode = 1; console.error(error); }
 }
