@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01–T09 complete; T10–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T10 complete; T11–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -101,11 +101,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
   Completed 2026-10-18. See [verification results](t09-verification.md). Added the lazy Material shell, validated same-origin HTTP adapters, one root socket/sync service, route-owned SignalStores, cancellation/revision guards, visible recovery states, and an accessible connection dialog. All 25 frontend, 320 backend, and 75 contract tests passed with uncached `pnpm check`, including both production builds. All five Chromium tests passed, including one socket across navigation, keyboard/focus behavior, real two-context store updates, offline recovery, and deep links. Recorded and optimized the production bundle baseline; editing/cart/checkout/status UI remain T10–T13.
 
-- [ ] **T10 — Implement Setup UI**
+- [x] **T10 — Implement Setup UI**
 
   Build category/item forms and paginated lists for name/category, fixed/open pricing, availability, and archive. Retain invalid form input and show server/optimistic-revision conflicts. Confirm archival with its effect on active menu items.
 
   Acceptance: an edit in Setup is visible in another browser's Menu without reloading; archival removes ordering eligibility. Editing open pricing never sends a fixed price. Concurrent edits produce an actionable conflict rather than silently overwriting another edit. Form submission errors retain input.
+
+  Completed 2026-10-18. See [verification results](t10-verification.md). Added category/item forms, bounded item pagination/search/category filters, category pagination, explicit archive confirmations, retained error drafts, and revision-conflict reload/review. Added 18 frontend tests and three Chromium scenarios proving two-browser live editing, open-price payloads, archive eligibility, concurrent conflicts, manual retry, pagination, and mobile/focus behavior. Uncached `pnpm check` passed with 43 frontend, 320 backend, and 75 contract tests and both production builds; all eight Chromium tests passed. The frontend build succeeds with a 9.86 kB initial-bundle warning above the existing 550 kB warning threshold; the 600 kB error budget is unchanged.
 
 - [ ] **T11 — Implement menu, cart, and large-menu behavior**
 

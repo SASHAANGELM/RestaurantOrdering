@@ -1,6 +1,6 @@
 # Implementation plan
 
-Build the agreed architecture in small runnable increments. The task checklist is in [tasks.md](tasks.md); API and recovery details are in [contracts.md](contracts.md). T01–T09 are complete; see the per-task verification reports linked from [tasks](tasks.md), including the [Angular shell/client verification](t09-verification.md). T10–T16 remain unimplemented.
+Build the agreed architecture in small runnable increments. The task checklist is in [tasks.md](tasks.md); API and recovery details are in [contracts.md](contracts.md). T01–T10 are complete; see the per-task verification reports linked from [tasks](tasks.md), including the [Setup UI verification](t10-verification.md). T11–T16 remain unimplemented.
 
 ## 1. Milestones and sequencing
 

@@ -33,6 +33,15 @@ describe('HTTP client boundary', () => {
     await rejected;
   });
 
+  it('omits optional cleared filters rather than serializing undefined query values', async () => {
+    const result = firstValueFrom(api.setupItems({ page: 1, pageSize: 10, includeArchived: false, categoryId: undefined, search: undefined }));
+    const request = http.expectOne('/api/setup/items?page=1&pageSize=10&includeArchived=false');
+    expect(request.request.params.has('categoryId')).toBe(false);
+    expect(request.request.params.has('search')).toBe(false);
+    request.flush({ items: [], page: 1, pageSize: 10, total: 0, menuRevision: 0 });
+    await result;
+  });
+
   it('preserves typed conflict details and the request reference', async () => {
     const result = firstValueFrom(api.updateOrderStatus(id, { status: 'ready', expectedRevision: 1 }));
     const rejected = expect(result).rejects.toMatchObject({ status: 409, kind: 'api', body: {

@@ -42,10 +42,14 @@ export class ApiClient {
   private readonly http = inject(HttpClient);
 
   private request<T>(method: string, path: string, schema: ZodType<T>, options: {
-    body?: unknown; params?: Record<string, string | number | boolean>; headers?: Record<string, string>;
+    body?: unknown; params?: Record<string, string | number | boolean | undefined>; headers?: Record<string, string>;
   } = {}): Observable<T> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(options.params ?? {})) {
+      if (value !== undefined) params = params.set(key, value);
+    }
     return this.http.request<unknown>(method, `/api${path}`, {
-      ...options, params: new HttpParams({ fromObject: options.params ?? {} })
+      ...options, params
     }).pipe(timeout(10_000), map((data) => {
       const result = schema.safeParse(data);
       if (!result.success) throw new ClientError('The server returned an invalid response. Try refreshing.', 'invalid-response');
