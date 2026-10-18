@@ -1,8 +1,28 @@
-# T12 — Review, confirmation, and recovery verification
+# T12 — Implement review, confirmation, and recovery UI
+
+Status: **Complete**
+
+Depends on: [T06](t06-implement-authoritative-checkout-quotes.md), [T07](t07-implement-idempotent-orders-and-status-transitions.md), [T11](t11-implement-menu-cart-and-large-menu-behavior.md)
+
+[Task index](README.md)
+
+## Scope
+
+Implement the explicit quote review and confirm workflow. Invalidate a quote on local edits/menu changes/expiry. Persist a frozen attempt key and exact quote payload before sending. Keep unknown outcomes pending and recover by key or same-key retry, including on page reload.
+
+## Acceptance criteria
+
+A late availability/price change triggers review again and never silently places an order. Double-clicking sends one checkout intent. A response lost after commit, followed by reload/retry, opens the same order with no duplicate. A 404 lookup does not lead to a new key while the old attempt is unresolved; `QUOTE_USED` resolves to the existing order. Definite validation rejection restores an editable cart; no automatic order is submitted on reconnect. Storage failure has a clear recovery limitation.
+
+## Completion record
+
+Completed 2026-10-18. See [verification results](#verification). Added explicit authoritative review, local/menu/expiry invalidation, before-send frozen attempt persistence, same-key retry, read-only reload recovery, and existing-order resolution for `QUOTE_USED`. Added 29 frontend tests and four real Chromium scenarios, including a committed response dropped before delivery, reload/404/same-key retry with exactly one order, late server changes, and storage limitations. Uncached `pnpm check` passed with 105 frontend, 320 backend, and 75 contract tests and both production builds; all 15 standard Chromium tests and the separate 5,000-item menu test passed. The frontend build succeeds at 560.37 kB with a 10.37 kB warning above the unchanged 550 kB warning threshold. Staff status controls remain T13.
+
+## Verification
 
 Verified on 2026-10-18 using repository-pinned **Node 24.22.0** and **pnpm 12.14.0** from the existing isolated npm-exec toolchain. Dependencies, backend contracts, database schema, and bundle budgets are unchanged.
 
-## Implemented behavior
+### Implemented behavior
 
 - The cart offers **Review order**, followed by a separate **Confirm order** action. Review sends exact integer-cent intent, quantities, open prices, observed item revisions/names/prices, and discount. The labelled review shows every authoritative snapshot line, quantity, unit price, line total, discount, final total, expiry, and explicit old/current changes. Its heading receives keyboard focus when review appears.
 - Local edits invalidate the review immediately, including an edit reverted before Angular effects run. Menu revision changes and expiry also invalidate it. Responses arriving after a local/menu change cannot publish a usable quote. A one-second expiry clock is supplemented by an exact confirmation-time check. Failed quotes retain editable cart input and display line-specific cart issues. No new review ever submits an order automatically.
@@ -12,7 +32,7 @@ Verified on 2026-10-18 using repository-pinned **Node 24.22.0** and **pnpm 12.14
 - A definitive invalid/stale/expired confirmation rejection retains the cart, discards the review/attempt, and requires another explicit review. If its recovery record cannot be removed, checkout remains frozen with a storage recovery message. Success records the known order ID, synchronously saves the cleared original cart before removing recovery data, and navigates to order details. A cart that differs from the original saved attempt is preserved during recovery.
 - Failed attempt writes retain the same key in memory and clearly explain that reload/closing may lose safe recovery. Corrupt/unsupported recovery records are preserved and block replacement checkout. If storage cannot be read at all, cart editing remains usable in memory and checkout explains that storage must be restored before any previous attempt can be recovered safely. This preserves T11's in-memory cart behavior without guessing whether an unreadable attempt committed.
 
-## Demonstrated acceptance
+### Demonstrated acceptance
 
 Added **29 frontend tests**, beside the checkout implementation, covering observed/open-price payloads, separate price lines, exact discounts, before-send persistence, duplicate clicks, frozen cart methods, local/menu/expiry invalidation, reverted edits, background-tab expiry at click time, obsolete quote responses, unknown outcomes, 404 lookup, same-key retry, reload lookup/retry, committed-order recovery, definite rejections, line-specific quote failures, `QUOTE_USED` read failure/recovery, synchronization guards, write/read/remove failures, and corrupt recovery records. Existing frontend, backend, and shared-contract tests remain passing.
 
@@ -25,7 +45,7 @@ Added four real Chromium acceptance scenarios using the existing isolated in-mem
 
 The complete browser suite also exercises inaccessible session storage with continued cart additions/editing, existing Setup conflict/pagination/mobile behavior, independent live clients, route/socket lifetime, deep links, and offline recovery. The inaccessible-storage regression found during verification was fixed and covered by a new unit test.
 
-## Verification and limits
+### Verification and limits
 
 - Uncached `NX_SKIP_NX_CACHE=true NX_DEFAULT_OUTPUT_STYLE=stream pnpm check` **passed**, including lint, strict TypeScript/template checks, **105 frontend + 320 backend + 75 contract tests (500 total)**, shared declarations, and **both frontend and backend production builds**.
 - `pnpm e2e --output-style=stream --workers=1` **passed: 15/15 Chromium tests**. The complete suite was rerun after the storage fix, with no source edits during the run.

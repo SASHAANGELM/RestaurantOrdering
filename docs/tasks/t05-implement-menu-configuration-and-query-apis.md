@@ -1,8 +1,28 @@
-# T05 — Menu configuration and query APIs verification
+# T05 — Implement menu configuration and query APIs
+
+Status: **Complete**
+
+Depends on: [T04](t04-implement-express-lifecycle-and-common-errors.md)
+
+[Task index](README.md)
+
+## Scope
+
+Create/edit/archive categories and items; manage fixed/open pricing and availability. Add expected-revision conflict checks, transactional menu revision increments, bounded query/search/category pagination, and cart item resolution independent of the current page. Archived categories make their children unorderable.
+
+## Acceptance criteria
+
+Valid mutations persist; invalid category/pricing requests and stale edits are rejected; archive semantics are consistent across menu and checkout reads. Snapshot rows and stream revisions are read consistently. Small and large fixtures return bounded deterministic pages. Service results expose post-commit notification data for T08.
+
+## Completion record
+
+Completed 2026-10-18. See [verification results](#verification) and [menu configuration/query behavior](../contracts.md#2-http-surface). Added 57 isolated real-file menu API/service tests covering mutations, conflicts, archive eligibility, rollback, concurrent snapshot reads, post-commit notification data, and bounded small/5,000-item fixture pages. Uncached `pnpm check` passed, including both app unit-test targets and production builds. Shared eligibility reads are ready for T06/T07; checkout endpoints and Socket.IO remain later tasks.
+
+## Verification
 
 Verified on 2026-10-18, macOS arm64, using pinned Node **24.22.0** and pnpm **12.14.0** from the existing isolated npm-exec toolchain. Dependencies, lockfile, schema, and migrations are unchanged.
 
-## Implemented behavior
+### Implemented behavior
 
 - Registered all nine menu/Setup routes in the Express app. Shared schemas validate bodies, query parameters, and UUID path parameters; malformed or unknown fields receive the existing correlated error envelope. Responses disable caching.
 - Setup creates, edits, and archives categories/items, manages availability, moves items between active categories, and switches fixed/open pricing. Names/descriptions are trimmed; `description: null` clears a description. Fixed prices include zero and must fit the shared integer-cent limits; open writes omit `priceMinor`, and open responses return it as null.
@@ -13,7 +33,7 @@ Verified on 2026-10-18, macOS arm64, using pinned Node **24.22.0** and pnpm **12
 - Cart resolution accepts 1–100 distinct UUIDs independently of the visible page and returns entries in requested order. Eligibility precedence is missing, item archived, category archived, unavailable, available. Known entries include current item and category DTOs. `readResolvedItems` exposes this same joined eligibility read for T06/T07 to use inside their own authoritative transactions; checkout endpoints remain T06/T07.
 - Category, item, and resolution snapshots each read their data/counts and `menuRevision` inside one SQLite read transaction. Mutation service results are `{ response, notification }`; successful methods return after commit, with a contract-shaped `menu.changed` payload or null for a no-op. T08 can broadcast the notification; no Socket.IO server is introduced here.
 
-## Demonstrated acceptance and checks
+### Demonstrated acceptance and checks
 
 Added **57 feature tests** beside the implementation in `apps/backend/src/modules/menu/menu.spec.ts`:
 

@@ -1,6 +1,6 @@
 # Implementation plan
 
-Build the agreed architecture in small runnable increments. The task checklist is in [tasks.md](tasks.md); API and recovery details are in [contracts.md](contracts.md). T01–T12 are complete; see the per-task verification reports linked from [tasks](tasks.md), including [menu/cart verification](t11-verification.md) and [review/recovery verification](t12-verification.md). T13–T16 remain unimplemented.
+Build the agreed architecture in small runnable increments. The task table is in [the task index](tasks/README.md); API and recovery details are in [contracts.md](contracts.md). T01–T12 are complete; see the verification sections in the task files linked from [tasks](tasks/README.md), including [menu/cart verification](tasks/t11-implement-menu-cart-and-large-menu-behavior.md#verification) and [review/recovery verification](tasks/t12-implement-review-confirmation-and-recovery-ui.md#verification). T13–T16 remain unimplemented.
 
 ## 1. Milestones and sequencing
 

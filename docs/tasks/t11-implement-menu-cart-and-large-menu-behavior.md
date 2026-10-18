@@ -1,8 +1,28 @@
-# T11 — Menu, cart, and large-menu verification
+# T11 — Implement menu, cart, and large-menu behavior
+
+Status: **Complete**
+
+Depends on: [T05](t05-implement-menu-configuration-and-query-apis.md), [T08](t08-implement-socket-io-and-revision-synchronization.md), [T09](t09-implement-angular-shell-and-client-adapters.md)
+
+[Task index](README.md)
+
+## Scope
+
+Build server-paged browsing, debounced search/category filtering, item availability, quantity entry, open-price dialog, cart line editing, fixed discount input, and live estimated totals. Store validated/versioned per-tab cart data in sessionStorage. Resolve cart items outside the visible page when menu changes.
+
+## Acceptance criteria
+
+5,000 seeded items do not cause a full-menu fetch/render; rows use stable IDs/skeleton dimensions. Different open prices remain separate cart lines. Unavailable/archived items and changed prices are visibly marked without deleting user intent. Cart survives route changes/reload; corrupt/unavailable storage does not crash. Unit/component tests cover money input, discounts, and retained state on errors.
+
+## Completion record
+
+Completed 2026-10-18. See [verification results](#verification). Added server-paged Menu browsing, 250 ms search/category filters, quantity/open-price addition, editable cart lines and fixed discounts, exact live estimates, validated per-tab persistence, and off-page reconciliation with retained intent and visible price/eligibility changes. Added 33 frontend tests, three Chromium cart/menu scenarios, and an isolated real 5,000-item browser fixture proving bounded pages and matching skeleton dimensions. Uncached `pnpm check` passed with 76 frontend, 320 backend, and 75 contract tests and both production builds; all 11 standard Chromium tests and the separate large-menu test passed. The initial bundle succeeds at 560.30 kB with a 10.30 kB warning above the unchanged 550 kB warning threshold. Checkout UI remains T12.
+
+## Verification
 
 Verified on 2026-10-18 using repository-pinned **Node 24.22.0** and **pnpm 12.14.0** from the existing isolated npm-exec toolchain. Dependencies, lockfile, backend behavior, and bundle budgets are unchanged.
 
-## Implemented behavior
+### Implemented behavior
 
 - Menu uses server pagination at 10/25/50/100 items (default 50), a 250 ms debounced name search, and immediate category filtering. Filters reset to page one. Superseded queries retain the existing cancellation/revision guards. An empty later page offers a return to page one. No full item catalogue is downloaded or rendered.
 - Menu rows track item IDs, preserve quantity drafts/focus during realtime refresh, and disable adding unavailable items. Initial loading uses 50 skeleton rows with the same 160 px minimum height as loaded desktop rows; descriptions occupy at most two lines. Existing content stays visible during refresh/failure. The cart has direct navigation links so narrow screens do not require scrolling through a whole menu page to reach it.
@@ -12,7 +32,7 @@ Verified on 2026-10-18 using repository-pinned **Node 24.22.0** and **pnpm 12.14
 - A root-lifetime SignalStore keeps the cart across lazy route changes. A strict, versioned `sessionStorage` envelope validates snapshots, UUIDs, unique line IDs, bounded drafts, and line count. Invalid drafts are valid persisted UI state and are validated again before calculation. Corrupt/unsupported data starts an empty cart with a recovery notice. Access, read, and quota/write failures leave in-memory editing usable and explain reload limitations. Tabs have independent carts.
 - Cart reconciliation uses `/api/menu/resolve` for deduplicated IDs, independent of visible menu search/page. Menu revisions refresh all cart items, including off-page lines. Resolver failures retain the last snapshot and cart, show retry, and recover after manual refresh or a successful sync check. Quantity/discount edits do not cause unnecessary resolver requests. No empty resolver request is sent. Reconnect/sync never submits checkout.
 
-## Demonstrated acceptance
+### Demonstrated acceptance
 
 Added **33 frontend tests** beside the feature: 28 cart/store tests, two open-price dialog component tests, and three deterministic filter-timing tests. They cover money/quantity boundaries, same/different open-price merging, exact discounts and zero totals, retained invalid drafts, persisted/restored state, corrupt/unsupported and unavailable storage, off-page price/availability/archive/mode changes, failed reconciliation/retry, cancellation/revision guards, cart/quantity limits, debouncing, page resets, and route teardown. Existing frontend revision/socket/editor tests remain passing.
 
@@ -26,7 +46,7 @@ The separate `playwright.large.config.ts` starts a new in-memory backend with th
 
 The existing realtime E2E test now identifies its own committed category event and asserts monotonic revisions. Its previous exact global counts/revisions raced with other feature tests sharing the isolated server. Both independent clients must still receive the same committed event through polling/upgrade.
 
-## Verification and limits
+### Verification and limits
 
 - Uncached `NX_SKIP_NX_CACHE=true pnpm check` **passed**, including all lint/strict TypeScript/template checks, **76 frontend + 320 backend + 75 contract tests (471 total)**, contracts declarations, and **both frontend and backend production builds**. `NX_DEFAULT_OUTPUT_STYLE=stream` exposes individual target results.
 - `pnpm e2e --output-style=stream` **passed: 11/11 Chromium tests**.

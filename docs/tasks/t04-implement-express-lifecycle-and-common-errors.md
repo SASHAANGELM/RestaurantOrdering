@@ -1,8 +1,28 @@
-# T04 — Express lifecycle and common errors verification
+# T04 — Implement Express lifecycle and common errors
+
+Status: **Complete**
+
+Depends on: [T03](t03-implement-schema-migrations-and-seeds.md)
+
+[Task index](README.md)
+
+## Scope
+
+Separate testable app construction from startup. Add config validation, bounded JSON bodies, runtime request validation, request IDs, structured error mapping, health endpoints, and graceful HTTP/socket/DB shutdown. Migrate before readiness; no broad cross-origin access is needed with the dev/reverse proxies.
+
+## Acceptance criteria
+
+Configuration/migration failures fail startup clearly; ready/live endpoints behave as designed; unexpected exceptions do not expose internals; SQLite lock errors become retryable responses. Integration tests use isolated databases and no real development data.
+
+## Completion record
+
+Completed 2026-10-18. See [verification results](#verification) and [backend lifecycle/settings](../../README.md#backend-lifecycle-and-health). Added 57 backend tests; all 185 unit tests, uncached root quality checks and frontend/backend production builds, compiled configuration/migration/signal/restart smoke checks, and the existing Chromium E2E test pass. Socket.IO transport implementation remains T08; its lifecycle attachment and forced upgraded-connection cleanup are covered here.
+
+## Verification
 
 Verified on 2026-10-18, macOS arm64, with pinned Node **24.22.0** and pnpm **12.14.0** through the isolated npm-exec toolchain used for T01–T03. No dependency or lockfile changes were needed. HTTP integration tests use Node's native HTTP server and fetch against ephemeral loopback ports.
 
-## Implemented behavior
+### Implemented behavior
 
 - `apps/backend/src/app.ts` constructs Express without binding a port, installing process handlers, or opening a database. Routers register before the shared JSON 404/error handlers. Existing `GET /api` behavior remains compatible with the Angular proxy.
 - `config/config.ts` validates host, port, database path, seed mode, JSON limit, and shutdown deadline before database initialization. Defaults preserve local startup. Invalid settings report setting names and rules without echoing values.
@@ -14,7 +34,7 @@ Verified on 2026-10-18, macOS arm64, with pinned Node **24.22.0** and pnpm **12.
 - `server.ts` migrates and optionally seeds before attaching transports or binding HTTP. Initialization, app-construction, and listener failures have explicit startup-stage errors and clean up acquired resources. `main.ts` logs startup failure and exits unsuccessfully.
 - SIGINT/SIGTERM initiate idempotent shutdown: reject new work, stop accepting HTTP, drain active requests and await registered socket cleanup, then close SQLite. A finite deadline forces stalled HTTP and upgraded connections closed, invokes socket force cleanup, closes SQLite, and reports failure. Socket cleanup rejection also closes HTTP/SQLite. The attachment interface supports T08; the Socket.IO server itself remains unimplemented.
 
-## Demonstrated acceptance and checks
+### Demonstrated acceptance and checks
 
 - Added **57 backend tests** alongside configuration, app, and lifecycle implementation. Backend now has **109 passing tests**, including the existing persistence and contract-consumer suites.
 - `NX_SKIP_NX_CACHE=true pnpm check`: passed. Lint and strict typechecking passed for all four projects. Unit tests passed: **frontend 1**, **backend 109**, **contracts 75**, totaling **185**. Both frontend/backend production builds and contracts declarations succeeded with cache reads disabled.

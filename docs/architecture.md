@@ -1,6 +1,6 @@
 # Architecture
 
-Status: ready for implementation. Product decisions are recorded in [README](README.md). See [contracts](contracts.md) for request/event details and [tasks](tasks.md) for work items.
+Status: ready for implementation. Product decisions are recorded in [README](README.md). See [contracts](contracts.md) for request/event details and [tasks](tasks/README.md) for work items.
 
 ## 1. Goals and boundaries
 

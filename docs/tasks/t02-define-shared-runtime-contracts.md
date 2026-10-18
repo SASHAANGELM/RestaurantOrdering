@@ -1,14 +1,34 @@
-# T02 verification
+# T02 — Define shared runtime contracts
+
+Status: **Complete**
+
+Depends on: [T01](t01-scaffold-nx-workspace-and-quality-commands.md)
+
+[Task index](README.md)
+
+## Scope
+
+Create Zod schemas and inferred DTOs for menu/setup, cart intent, persisted quote snapshot, order, status updates, pagination, revisions, errors, and Socket.IO event maps. Include money/quantity/string limits and concrete error-detail schemas from [contracts](../contracts.md).
+
+## Acceptance criteria
+
+Both apps import the library without framework/server dependencies leaking across boundaries; representative malformed prices, quantities, enums, and unknown request fields are rejected. Decimal parsing and monetary arithmetic have focused boundary tests.
+
+## Completion record
+
+Completed 2026-10-18. See [verification results](#verification) and the [implemented contract reference](../contracts.md). All 77 unit tests, root quality checks, frozen install, and existing browser smoke test pass.
+
+## Verification
 
 Verified on 2026-10-18, macOS arm64, using the pinned Node **24.22.0** and pnpm **12.14.0** through the same isolated npm-exec toolchain used in T01. Zod **4.6.7** is an exact direct runtime dependency with a frozen lockfile; no peer or engine bypass was used.
 
-## Delivered contracts
+### Delivered contracts
 
 `libs/contracts/src/index.ts` exports strict Zod schemas and inferred DTOs for menu/setup, cart intent, persisted quote snapshots and review changes, historical orders, pagination, optimistic and stream revisions, error details, and socket event callbacks. Money helpers parse decimal strings exactly, bound unit prices and quantities, validate discounts, and reject unsafe totals. Status helpers encode the agreed manual transition graph.
 
-The [contract reference](contracts.md) records concrete error codes/details and HTTP mappings, response shapes, pricing-edit rules, and optional observed names for explicit quote differences. Backend services must still validate current database state; the shared schemas do not implement APIs, persistence, quote expiry enforcement, idempotency, or socket transport.
+The [contract reference](../contracts.md) records concrete error codes/details and HTTP mappings, response shapes, pricing-edit rules, and optional observed names for explicit quote differences. Backend services must still validate current database state; the shared schemas do not implement APIs, persistence, quote expiry enforcement, idempotency, or socket transport.
 
-## Demonstrated acceptance criteria
+### Demonstrated acceptance criteria
 
 - `pnpm install --frozen-lockfile`: passed with strict engine/peer settings.
 - `pnpm check`: passed lint/typecheck across all four projects, tests across three projects, and production builds for both apps and contracts declarations.

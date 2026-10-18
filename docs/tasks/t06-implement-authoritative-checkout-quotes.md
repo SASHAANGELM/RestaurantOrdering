@@ -1,8 +1,28 @@
-# T06 — Authoritative checkout quotes verification
+# T06 — Implement authoritative checkout quotes
+
+Status: **Complete**
+
+Depends on: [T05](t05-implement-menu-configuration-and-query-apis.md)
+
+[Task index](README.md)
+
+## Scope
+
+Recalculate prices/totals from DB; accept open prices only for open items; validate discount and item/category availability. Persist five-minute quotes with exact snapshots/menu revision, and return visible differences from the client's observed values.
+
+## Acceptance criteria
+
+Tests cover changed fixed prices, removed/archived/unavailable items/categories, pricing-mode switches, multiple open prices for one item, zero-total orders, excessive discounts, invalid decimals at input boundaries, and overflow protection. Invalid carts receive line-specific issues; no quote reserves inventory or creates an order.
+
+## Completion record
+
+Completed 2026-10-18. See [verification results](#verification). Added the transactional quote endpoint and 44 isolated real-file checkout tests covering authoritative snapshots, five-minute expiry metadata, visible differences, line-specific cart issues, pricing switches, safe money boundaries, rollback, and writer serialization. Uncached `pnpm check` passed, including frontend/backend unit tests and both production builds. Order confirmation remains T07.
+
+## Verification
 
 Verified on 2026-10-18, macOS arm64, with pinned Node **24.22.0** and pnpm **12.14.0** from the existing isolated npm-exec toolchain. Dependencies, shared contracts, schema, and migrations are unchanged.
 
-## Implemented behavior
+### Implemented behavior
 
 - `POST /api/checkout/quotes` validates the shared cart-intent schema and returns **201** with a server-generated quote and `Cache-Control: no-store`. HTTP prices and discounts are integer USD cents; decimal strings, fractional cents, unsafe integers, unknown fields, invalid IDs, and out-of-bounds quantities/prices/line counts receive correlated `400 VALIDATION_ERROR` responses with input paths.
 - The checkout service uses one short synchronous `BEGIN IMMEDIATE` transaction to load current joined item/category eligibility, read the matching menu revision, calculate totals, validate the complete snapshot, and persist the quote. Setup writes cannot interleave with those reads and persistence. The service returns only after commit.
@@ -12,7 +32,7 @@ Verified on 2026-10-18, macOS arm64, with pinned Node **24.22.0** and pnpm **12.
 - Persisted snapshots include IDs/names for items and categories, item revisions, pricing modes, quantities, unit/line prices, totals, USD currency, the menu revision, and server timestamps exactly five minutes apart. The persisted snapshot excludes response-only `changes`, survives connection reopening, and retains its original values after Setup edits.
 - Quoting leaves menu entities, availability, entity/stream revisions, orders, and order lines untouched. Repeated valid reviews create independent quote IDs. Quote creation reserves no inventory. Confirmation, expiry enforcement during confirmation, and order creation remain T07.
 
-## Demonstrated acceptance and checks
+### Demonstrated acceptance and checks
 
 Added **44 feature tests** beside the implementation in `apps/backend/src/modules/checkout/checkout.spec.ts`, all using isolated temporary real SQLite files:
 

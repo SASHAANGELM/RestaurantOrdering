@@ -1,8 +1,28 @@
-# T07 — Idempotent orders and status transitions verification
+# T07 — Implement idempotent orders and status transitions
+
+Status: **Complete**
+
+Depends on: [T06](t06-implement-authoritative-checkout-quotes.md)
+
+[Task index](README.md)
+
+## Scope
+
+Add quote confirmation, key-based recovery, order list/detail, and manual status updates. Use short immediate transactions, canonical request hashes, unique key/quote constraints, immutable line snapshots, and persisted stream revisions. Implement exactly the agreed transition graph.
+
+## Acceptance criteria
+
+Overlapping same-key requests create one order; the same key with another payload conflicts; another key cannot consume the same quote. Replay succeeds after quote expiry/menu edits and a backend restart. Changed availability between review and commit prevents placement. A failed transaction leaves no order lines/orphaned state. Lost-response recovery returns the original order. Invalid/stale status transitions change nothing; historical prices remain unchanged after Setup edits.
+
+## Completion record
+
+Completed 2026-10-18. See [verification results](#verification). Added quote confirmation, key-based replay/recovery, consistent paginated order reads, immutable snapshots, manual status transitions, and committed notification data for T08. Added 88 isolated real-file tests, including independent SQLite writer races, a committed request with a dropped HTTP response, expiry/edit/restart recovery, rollback, and all 25 status pairs. Uncached `pnpm check` passed, including frontend/backend unit tests and both production builds. Realtime delivery and frontend workflows remain later tasks.
+
+## Verification
 
 Verified on 2026-10-18, macOS arm64, with pinned Node **24.22.0** and pnpm **12.14.0** from the existing isolated npm-exec toolchain. Dependencies, shared contracts, schema, and migrations are unchanged.
 
-## Implemented behavior
+### Implemented behavior
 
 - `POST /api/orders` accepts only `{ quoteId }` with a UUID `Idempotency-Key` header. Creation returns **201**; a committed same-key/same-payload replay returns **200**, the same order ID and immutable lines, and its current status. A versioned canonical JSON request is hashed with SHA-256. Same-key/different-payload requests return `409 IDEMPOTENCY_CONFLICT` before quote checks. A different key cannot consume the same quote and receives `409 QUOTE_USED` with its existing order ID, even after expiry.
 - Confirmation uses one short synchronous `BEGIN IMMEDIATE` transaction. The writer lock is acquired before key/quote/menu reads, so independent writers serialize before making placement decisions. Unique database constraints also protect idempotency keys and quote consumption. An unused quote must be unexpired, have the current persisted menu revision, and still match current item/category eligibility, pricing mode, names/revisions, prices, and calculated totals. Any menu revision change, including an unrelated edit or availability toggled off and back, requires another review with `409 MENU_CHANGED`. No new price is silently accepted.
@@ -12,7 +32,7 @@ Verified on 2026-10-18, macOS arm64, with pinned Node **24.22.0** and pnpm **12.
 - `PATCH /api/orders/:id/status` enforces placed → preparing → ready → completed and cancellation only from placed/preparing. It checks the expected entity revision before transitions or no-ops. A valid change increments entity and stream revisions atomically; stale or invalid requests change nothing. A current-status write at the current revision preserves timestamps/revisions and returns no notification.
 - Services return committed `orders.changed` notification data for T08. Replay and no-op results return no notification; failures throw before any result escapes. Socket.IO broadcasting remains T08.
 
-## Demonstrated acceptance and checks
+### Demonstrated acceptance and checks
 
 Added **88 feature tests** beside the implementation in `apps/backend/src/modules/orders/orders.spec.ts`, all using isolated temporary real SQLite files:
 

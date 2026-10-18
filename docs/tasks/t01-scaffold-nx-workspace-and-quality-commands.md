@@ -1,8 +1,28 @@
-# T01 verification
+# T01 — Scaffold Nx workspace and quality commands
+
+Status: **Complete**
+
+Depends on: None
+
+[Task index](README.md)
+
+## Scope
+
+Create integrated Nx apps `frontend` and `backend`, framework-neutral `contracts`, and `frontend-e2e`; use pnpm with one lockfile. Resolve the latest stable Angular against Nx/NgRx/Material/TypeScript/Node peers; record exact versions. Configure strict TypeScript/template checking, ESLint import boundaries, Vitest integration, Playwright, local proxy paths, and root scripts. Initialize Git if absent and add ignores.
+
+## Acceptance criteria
+
+A frozen install succeeds without peer bypasses; both placeholder apps start with `pnpm dev`; `pnpm lint`, `typecheck`, `test`, and `build` run successfully. Client code cannot import backend/DB code. Record a baseline production bundle budget and native-driver compatibility. Do not add placeholder tests solely to make targets green.
+
+## Completion record
+
+Completed 2026-10-18. See [verification results](#verification) and the [local startup README](../../README.md).
+
+## Verification
 
 Verified on 2026-10-18, macOS arm64, using Node **24.22.0** and pnpm **12.14.0**. The machine's default Node was 26.12.0 and pnpm was absent; verification used an isolated npm-exec toolchain without changing system installations. Repository engine pins and version files select the intended Node 24 runtime.
 
-## Dependency resolution
+### Dependency resolution
 
 Resolved npm registry stable release tags and package peer metadata during implementation. Angular **22.2.3** was the latest stable framework release; no prereleases, peer bypasses, peer overrides, or Angular downgrades were used.
 
@@ -22,7 +42,7 @@ Angular 22 requires TypeScript 6.0.x and supports the chosen Node 24 line. The p
 
 Sources checked: [Angular compatibility](https://angular.dev/reference/versions), [Angular release policy](https://angular.dev/reference/releases), [Nx/Angular compatibility](https://nx.dev/docs/kb/angular-nx-version-matrix), [Nx plugin alignment](https://nx.dev/docs/technologies/angular/introduction), [Node release status](https://nodejs.org/en/about/previous-releases). Exact package metadata can be reproduced with `npm view <package>@<version> peerDependencies engines --json`; the complete resolved graph is in `pnpm-lock.yaml`.
 
-## Demonstrated acceptance criteria
+### Demonstrated acceptance criteria
 
 - `pnpm install --frozen-lockfile`: passed with strict peers and engine checks; no resolution changes.
 - `pnpm dev`: started frontend at `127.0.0.1:4200` and backend at `127.0.0.1:3000`. Direct and frontend-proxied `/api` requests returned the backend's JSON; Ctrl+C stopped both servers.
@@ -34,11 +54,11 @@ Sources checked: [Angular compatibility](https://angular.dev/reference/versions)
 
 `pnpm test` currently reports no domain unit tests. This is intentional for the scaffold; unit/component coverage arrives with the features. The retained E2E test verifies actual workspace integration.
 
-## Production budget baseline
+### Production budget baseline
 
 Angular production output: main JS **93.53 kB**, global CSS **129 bytes**, initial total **93.65 kB raw / 28.34 kB estimated transfer**. Initial warning/error budgets are **350/500 kB**; individual component styles warn/error at **4/8 kB**. The placeholder does not import Material into its bundle yet. This measurement is a starting point, not the completed product's performance result.
 
-## Native-driver compatibility
+### Native-driver compatibility
 
 `pnpm verify:native` loaded better-sqlite3 **13.0.3**, created an in-memory STRICT table, wrote/read an integer, and closed the database successfully. Observed runtime: Node **24.22.0**, ABI **137**, **darwin arm64**, SQLite **3.53.4**. No development database was created or touched.
 
