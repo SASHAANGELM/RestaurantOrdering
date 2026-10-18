@@ -150,6 +150,8 @@ No simulator/background progression is included. The Orders page supplies the ma
 
 One server attaches to the same HTTP server as Express. One browser client uses the same origin and `/socket.io` path. Keep polling fallback and WebSocket upgrade enabled. There are no order-submission socket events.
 
+T08 implements the server with Socket.IO server/client **4.8.4**, post-commit HTTP-route notifications, and uncached `GET /api/sync`. Validation failures, transaction failures (including COMMIT failure), current-state no-ops, and idempotent replays do not broadcast. Every new/recovered connection receives persisted `sync.state`. The Angular socket service/stores and client synchronization schedule below remain T09. See [verification](t08-verification.md).
+
 | Server → client event | Payload | Client behavior |
 | --- | --- | --- |
 | `sync.state` | `{ menuRevision, ordersRevision }` | Sent after connection; compare with applied snapshots and synchronize. |
@@ -169,7 +171,7 @@ For first connection/reconnection:
 3. During reads, retain the highest revision seen from events/`sync.state`. Never let a late lower-revision response overwrite newer state; also track query request IDs when filters change.
 4. If any announced revision exceeds its snapshot, refetch affected state. If both streams/active views are reconciled, show connected/current. A page revision never certifies freshness of independent cached pages.
 
-Socket.IO connection-state recovery may be enabled for a bounded interval (e.g. two minutes), but always perform snapshot reconciliation on reconnect, including after a server restart. Revisions survive restarts in SQLite.
+Socket.IO connection-state recovery is enabled for two minutes by default. `SOCKET_RECOVERY_MS` accepts 0–120,000 milliseconds; 0 disables recovery. Middleware checks run on recovered sessions too. Always perform snapshot reconciliation on reconnect, including after a server restart. Revisions survive restarts in SQLite; in-memory packet recovery does not.
 
 While the app is visible, call lightweight `GET /api/sync` every 15 seconds. Also check on tab focus, browser online events, and relevant route activation. Compare those revisions to active views and cart/quote validity. This repairs a lost post-commit event without a durable event log; do not download the entire menu each interval. A DB commit followed immediately by a process crash may omit its event, but later sync/reconnect observes its persisted revision.
 

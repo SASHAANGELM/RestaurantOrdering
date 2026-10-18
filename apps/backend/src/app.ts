@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Express } from 'express';
+import { z } from 'zod';
 import type { DatabaseConnection } from './db/connection';
 import { errorHandler, HttpError, unavailableError, type ErrorReporter } from './middleware/errors';
 import { createCheckoutRouter } from './modules/checkout/router';
 import { createMenuRouter } from './modules/menu/router';
 import { createOrdersRouter } from './modules/orders/router';
+import type { Notifications } from './modules/realtime/server';
+import { readSyncState } from './modules/realtime/sync';
+import { validateRequest } from './middleware/validation';
 
 export interface AppOptions {
   connection: DatabaseConnection;
@@ -12,6 +16,7 @@ export interface AppOptions {
   isShuttingDown?: () => boolean;
   reportError?: ErrorReporter;
   registerRoutes?: (app: Express) => void;
+  notifications?: Notifications;
 }
 
 export function createApp(options: AppOptions) {
@@ -43,9 +48,14 @@ export function createApp(options: AppOptions) {
   app.use((_request, _response, next) => { next(options.isShuttingDown?.() ? unavailableError() : undefined); });
   app.use(express.json({ limit: options.jsonBodyLimitBytes, strict: true, inflate: false }));
   app.get('/api', (_request, response) => { response.json({ name: 'Restaurant Ordering API' }); });
-  app.use('/api', createMenuRouter(options.connection));
+  app.get('/api/sync', (request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    validateRequest(z.strictObject({}), request.query, 'query');
+    response.json(readSyncState(options.connection));
+  });
+  app.use('/api', createMenuRouter(options.connection, options.notifications));
   app.use('/api', createCheckoutRouter(options.connection));
-  app.use('/api', createOrdersRouter(options.connection));
+  app.use('/api', createOrdersRouter(options.connection, options.notifications));
   options.registerRoutes?.(app);
   app.use((_request, response) => {
     throw new HttpError({

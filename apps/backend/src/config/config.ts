@@ -12,7 +12,8 @@ const configSchema = z.object({
   DATABASE_PATH: z.string().trim().min(1).refine((path) => !path.includes('\0'), 'Path must not contain NUL.').default(DEFAULT_DATABASE_PATH),
   SEED_MODE: z.enum(['none', 'small', 'large']).default('small'),
   JSON_BODY_LIMIT_BYTES: integerSetting(1, 1_048_576, 65_536),
-  SHUTDOWN_TIMEOUT_MS: integerSetting(1, 60_000, 10_000)
+  SHUTDOWN_TIMEOUT_MS: integerSetting(1, 60_000, 10_000),
+  SOCKET_RECOVERY_MS: integerSetting(0, 120_000, 120_000)
 });
 
 export function loadConfig(environment: NodeJS.ProcessEnv) {
@@ -25,7 +26,8 @@ export function loadConfig(environment: NodeJS.ProcessEnv) {
   const config = result.data;
   return {
     host: config.HOST, port: config.PORT, databasePath: config.DATABASE_PATH, seedMode: config.SEED_MODE,
-    jsonBodyLimitBytes: config.JSON_BODY_LIMIT_BYTES, shutdownTimeoutMs: config.SHUTDOWN_TIMEOUT_MS
+    jsonBodyLimitBytes: config.JSON_BODY_LIMIT_BYTES, shutdownTimeoutMs: config.SHUTDOWN_TIMEOUT_MS,
+    socketRecoveryMs: config.SOCKET_RECOVERY_MS
   };
 }
 

@@ -5,15 +5,15 @@ describe('backend configuration', () => {
   it('provides local defaults and ignores unrelated process environment', () => {
     expect(loadConfig({ UNRELATED_SETTING: 'ignored' })).toEqual({
       host: '127.0.0.1', port: 3000, databasePath: 'data/restaurant.sqlite', seedMode: 'small',
-      jsonBodyLimitBytes: 65_536, shutdownTimeoutMs: 10_000
+      jsonBodyLimitBytes: 65_536, shutdownTimeoutMs: 10_000, socketRecoveryMs: 120_000
     });
   });
 
   it('parses deployment overrides and IPv6 without touching a database', () => {
     expect(loadConfig({ HOST: '::1', PORT: '8080', DATABASE_PATH: '/data/demo.sqlite', SEED_MODE: 'none',
-      JSON_BODY_LIMIT_BYTES: '1024', SHUTDOWN_TIMEOUT_MS: '500' })).toEqual({
+      JSON_BODY_LIMIT_BYTES: '1024', SHUTDOWN_TIMEOUT_MS: '500', SOCKET_RECOVERY_MS: '0' })).toEqual({
       host: '::1', port: 8080, databasePath: '/data/demo.sqlite', seedMode: 'none',
-      jsonBodyLimitBytes: 1024, shutdownTimeoutMs: 500
+      jsonBodyLimitBytes: 1024, shutdownTimeoutMs: 500, socketRecoveryMs: 0
     });
     expect(loadConfig({ HOST: 'backend' }).host).toBe('backend');
     expect(loadConfig({ HOST: '0.0.0.0' }).host).toBe('0.0.0.0');
@@ -24,7 +24,9 @@ describe('backend configuration', () => {
     ['HOST', ''], ['HOST', 'http://localhost'], ['HOST', 'bad host'],
     ['DATABASE_PATH', '  '], ['DATABASE_PATH', 'invalid\0path'], ['SEED_MODE', 'reset'],
     ['JSON_BODY_LIMIT_BYTES', '0'], ['JSON_BODY_LIMIT_BYTES', '1048577'],
-    ['SHUTDOWN_TIMEOUT_MS', '0'], ['SHUTDOWN_TIMEOUT_MS', '60001']
+    ['SHUTDOWN_TIMEOUT_MS', '0'], ['SHUTDOWN_TIMEOUT_MS', '60001'],
+    ['SOCKET_RECOVERY_MS', '-1'], ['SOCKET_RECOVERY_MS', '120001'], ['SOCKET_RECOVERY_MS', 'Infinity'],
+    ['SOCKET_RECOVERY_MS', '1.5']
   ])('rejects invalid %s before startup', (setting, value) => {
     expect(() => loadConfig({ [setting]: value })).toThrow(`Invalid backend configuration: ${setting}:`);
   });

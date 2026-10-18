@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01–T07 complete; T08–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T08 complete; T09–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -83,11 +83,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
   Completed 2026-10-18. See [verification results](t07-verification.md). Added quote confirmation, key-based replay/recovery, consistent paginated order reads, immutable snapshots, manual status transitions, and committed notification data for T08. Added 88 isolated real-file tests, including independent SQLite writer races, a committed request with a dropped HTTP response, expiry/edit/restart recovery, rollback, and all 25 status pairs. Uncached `pnpm check` passed, including frontend/backend unit tests and both production builds. Realtime delivery and frontend workflows remain later tasks.
 
-- [ ] **T08 — Implement Socket.IO and revision synchronization**
+- [x] **T08 — Implement Socket.IO and revision synchronization**
 
   Attach one typed Socket.IO server to the Express HTTP server. Emit `sync.state` on connection and menu/order notifications only after commits. Add `/api/sync`, finite optional connection recovery, and shutdown handling; no domain writes through sockets.
 
   Acceptance: two independent clients see committed menu and status changes; failed transactions emit nothing. Clients can reconnect after restart using persisted revisions. Tests demonstrate duplicate notification tolerance and missed-broadcast repair through sync. Socket.IO server and client versions/paths are compatible and HTTP polling remains available.
+
+  Completed 2026-10-18. See [verification results](t08-verification.md). Added one typed Socket.IO server, committed menu/order broadcasts, uncached `/api/sync`, finite optional connection recovery, and lifecycle cleanup. All 18 isolated real-file realtime tests passed, including COMMIT failure, duplicate events, omitted-broadcast repair, restart recovery, polling/upgrade, and active-client shutdown. Uncached `pnpm check` passed, including frontend/backend unit tests and both production builds; frozen install and both Chromium E2E tests passed, including two independent browser contexts through the Angular proxy. Angular client adapters/stores remain T09.
 
 ## Frontend workflows
 

@@ -4,8 +4,9 @@ import { createApp, type AppOptions } from './app';
 import type { BackendConfig } from './config/config';
 import type { DatabaseConnection } from './db/connection';
 import { initializeDatabase } from './db/initialize';
+import { attachRealtime } from './modules/realtime/server';
 
-// T08 attaches Socket.IO to this HTTP server and supplies its transport cleanup.
+// Additional lifecycle hooks support transport failure/drain tests.
 export interface SocketLifecycle {
   close: () => Promise<void>;
   forceClose: () => void;
@@ -31,10 +32,15 @@ export async function startServer(config: BackendConfig, options: ServerOptions 
   let stopping = false;
   let app: ReturnType<typeof createApp>;
   let server: Server;
+  let realtime: ReturnType<typeof attachRealtime> | undefined;
   try {
     app = createApp({
       connection, jsonBodyLimitBytes: config.jsonBodyLimitBytes, isShuttingDown: () => stopping,
-      registerRoutes: options.registerRoutes, reportError: options.reportError
+      registerRoutes: options.registerRoutes, reportError: options.reportError,
+      notifications: {
+        menuChanged: (notification) => realtime?.menuChanged(notification),
+        ordersChanged: (notification) => realtime?.ordersChanged(notification)
+      }
     });
     server = createServer(app);
   } catch (error) {
@@ -61,13 +67,13 @@ export async function startServer(config: BackendConfig, options: ServerOptions 
             else resolve();
           });
         });
-        const socketsClosed = Promise.resolve().then(() => sockets?.close());
+        const socketsClosed = Promise.resolve().then(() => Promise.all([realtime?.close(), sockets?.close()]));
         const deadline = new Promise<never>((_resolve, reject) => {
           timer = setTimeout(() => reject(new Error('Backend shutdown exceeded SHUTDOWN_TIMEOUT_MS.')), config.shutdownTimeoutMs);
         });
         await Promise.race([Promise.all([httpClosed, socketsClosed]), deadline]);
       } catch (error) {
-        try { sockets?.forceClose(); }
+        try { realtime?.forceClose(); sockets?.forceClose(); }
         finally {
           // closeAllConnections excludes upgraded sockets; track and destroy those too.
           server.closeAllConnections();
@@ -83,6 +89,7 @@ export async function startServer(config: BackendConfig, options: ServerOptions 
   }
 
   try {
+    realtime = attachRealtime(server, connection, config.socketRecoveryMs, () => stopping);
     sockets = options.attachSockets?.(server);
     await new Promise<void>((resolve, reject) => {
       const onError = (error: Error) => { reject(error); };
@@ -96,5 +103,5 @@ export async function startServer(config: BackendConfig, options: ServerOptions 
     await shutdown();
     throw new Error('Backend HTTP startup failed.', { cause: error });
   }
-  return { app, server, connection, shutdown, isShuttingDown: () => stopping };
+  return { app, server, connection, realtime, shutdown, isShuttingDown: () => stopping };
 }

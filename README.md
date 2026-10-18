@@ -1,6 +1,6 @@
 # Restaurant Ordering
 
-Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T07 are implemented.** The frontend currently serves a workspace placeholder; the backend provides SQLite persistence, validated configuration, health checks, common errors, graceful shutdown, menu configuration/query APIs, authoritative checkout quotes, idempotent order confirmation/recovery, and manual order statuses. Realtime behavior, frontend workflows, and Docker deployment are later [tasks](docs/tasks.md).
+Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T08 are implemented.** The frontend currently serves a workspace placeholder; the backend provides SQLite persistence, validated configuration, health checks, common errors, graceful shutdown, menu configuration/query APIs, authoritative checkout quotes, idempotent order confirmation/recovery, manual order statuses, and Socket.IO notifications with persisted revision synchronization. Frontend workflows and Docker deployment are later [tasks](docs/tasks.md).
 
 ## Local development
 
@@ -11,7 +11,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api> and responds with `{"name":"Restaurant Ordering API"}`. Angular proxies relative `/api` and `/api/**` requests to that backend. `/socket.io` and `/socket.io/**` also have HTTP/WebSocket proxy configuration ready for T08. Stop both apps with Ctrl+C. No environment file is needed. Before listening, the backend creates `data/restaurant.sqlite`, applies checked-in migrations, and seeds a small demo menu only if the database is empty and has never been initialized.
+Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api> and responds with `{"name":"Restaurant Ordering API"}`. Angular proxies relative `/api` and `/api/**` requests to that backend. `/socket.io` and `/socket.io/**` proxy HTTP polling and WebSocket upgrades to the same backend listener. Stop both apps with Ctrl+C. No environment file is needed. Before listening, the backend creates `data/restaurant.sqlite`, applies checked-in migrations, and seeds a small demo menu only if the database is empty and has never been initialized.
 
 ## Commands
 
@@ -20,10 +20,10 @@ Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api>
 | `pnpm dev` | Watch and serve frontend and backend together. |
 | `pnpm lint` | ESLint, Angular template accessibility, and Nx import boundaries. |
 | `pnpm typecheck` | Strict TypeScript for all four projects, plus Angular template checking. |
-| `pnpm test` | Contract/money boundaries, browser/server contract consumers, isolated persistence, menu/checkout/order API/service, and HTTP/lifecycle tests. |
+| `pnpm test` | Contract/money boundaries, browser/server contract consumers, isolated persistence, menu/checkout/order API/service, realtime/sync, and HTTP/lifecycle tests. |
 | `pnpm build` | Production frontend/backend builds and contracts declarations in `dist/`. |
 | `pnpm check` | Lint, typecheck, test, and build sequentially. |
-| `pnpm e2e` | Chromium smoke test using its own frontend/backend servers. Stop `pnpm dev` first. |
+| `pnpm e2e` | Chromium app/API and two-context realtime proxy tests using their own frontend/backend servers. Stop `pnpm dev` first. |
 | `pnpm verify:native` | Exercise better-sqlite3 in memory and print runtime/driver compatibility. |
 | `pnpm db:generate` | Generate a reviewed SQL migration after changing the Drizzle schema. |
 | `pnpm db:check` | Check the migration history for collisions. |
@@ -33,7 +33,7 @@ Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api>
 
 Every implementation task must pass **both app unit-test targets and both production builds** before completion. This requirement is recorded in [AGENTS.md](AGENTS.md); `pnpm check` runs those checks along with lint, strict typechecking, and shared contract tests.
 
-Before the first E2E run, download Chromium with `pnpm exec playwright install chromium` (Linux CI may need `--with-deps`). E2E verifies that Angular renders in a real browser and that `/api` reaches Express through the frontend origin. Its backend uses an isolated in-memory database with seeding disabled. Reports go to ignored `playwright-report/` and `test-results/` directories.
+Before the first E2E run, download Chromium with `pnpm exec playwright install chromium` (Linux CI may need `--with-deps`). E2E verifies that Angular renders in a real browser, `/api` reaches Express through the frontend origin, and two independent browser contexts receive committed notifications through polling and WebSocket upgrade proxies. Its backend uses an isolated in-memory database with seeding disabled. Reports go to ignored `playwright-report/` and `test-results/` directories.
 
 Contract tests cover malformed requests, pricing modes, safe money arithmetic, snapshot totals, error details, status rules, and event payloads. Both app test targets import the contracts alias: Angular's Vitest builder verifies the browser consumer, and backend Vitest verifies request/recovery payload serialization. Backend/contracts test targets fail on empty suites. Additional feature tests belong with their implementation tasks.
 
@@ -52,7 +52,7 @@ DATABASE_PATH=data/large.sqlite SEED_MODE=large pnpm dev
 
 Use a new path for a fresh fixture. Deleting a local database and its SQLite sidecars permanently removes that file's orders and configuration; stop the backend before any intentional reset. `data/`, SQLite files, and sidecars are ignored by Git. Tests create and remove their own OS temporary files.
 
-The persistence helpers include expiry cleanup that retains quotes referenced by orders. T05 implements menu HTTP APIs and shared item/category eligibility reads; T06 implements persisted quote preparation; T07 implements quote confirmation, order APIs, and status rules using the schema's unique key/quote constraints. Realtime broadcasts remain T08. See [T03 verification](docs/t03-verification.md) for demonstrated persistence behavior.
+The persistence helpers include expiry cleanup that retains quotes referenced by orders. T05 implements menu HTTP APIs and shared item/category eligibility reads; T06 implements persisted quote preparation; T07 implements quote confirmation, order APIs, and status rules using the schema's unique key/quote constraints. T08 broadcasts committed changes and exposes persisted revisions for recovery. See [T03 verification](docs/t03-verification.md) for demonstrated persistence behavior.
 
 ## Menu configuration and queries
 
@@ -70,7 +70,13 @@ Confirm a reviewed quote with `POST /api/orders`, JSON `{ "quoteId": "<UUID>" }`
 
 Recover a committed result using `GET /api/orders/by-request/:idempotencyKey`. A 404 means no committed result was found in that read; an in-flight attempt may still commit, so retain the original key and payload for retries. List orders with `GET /api/orders?status=&page=&pageSize=` (newest first, default 50, maximum 100), and read immutable line/price snapshots with `GET /api/orders/:id`. Order responses include the matching persisted `ordersRevision` and disable caching.
 
-Use `PATCH /api/orders/:id/status` with `{ "status": "preparing", "expectedRevision": 1 }`. The graph is placed → preparing → ready → completed; cancellation is allowed only from placed or preparing. Stale revisions and invalid transitions return 409 without changing state. Current-status requests at the current revision are no-ops. Creation/status changes update the order stream atomically and expose committed notification data for T08. See [T07 verification](docs/t07-verification.md); frontend controls and realtime delivery remain later tasks.
+Use `PATCH /api/orders/:id/status` with `{ "status": "preparing", "expectedRevision": 1 }`. The graph is placed → preparing → ready → completed; cancellation is allowed only from placed or preparing. Stale revisions and invalid transitions return 409 without changing state. Current-status requests at the current revision are no-ops. Creation/status changes update the order stream atomically and broadcast committed notification data. See [T07 verification](docs/t07-verification.md); frontend controls remain later tasks.
+
+## Realtime and synchronization
+
+Socket.IO server and client are both pinned to **4.8.4**, using the same-origin `/socket.io` path. One server shares the Express HTTP listener, supporting HTTP polling and WebSocket upgrades. Register listeners before connecting. Every connection, including recovered sessions, receives `sync.state` with persisted `{ menuRevision, ordersRevision }`. Committed Setup writes broadcast `menu.changed`; committed order creation/status changes broadcast `orders.changed` to all connected clients. Failures, no-op writes, and idempotent replays emit nothing. Socket events never accept domain writes.
+
+`GET /api/sync` returns both persisted revisions in one SQLite read and disables caching. Clients compare stream revisions and refetch authoritative HTTP snapshots to repair missed or duplicate notifications. In-memory connection recovery defaults to two minutes; `SOCKET_RECOVERY_MS=0` disables it. Recovery cannot survive a backend restart, while SQLite revisions do. The Angular singleton socket service, revision tracking, focus/reconnect checks, and 15-second sync scheduling belong to T09. See [T08 verification](docs/t08-verification.md) for real-client, rollback, restart, event-loss, and browser proxy evidence.
 
 ## Backend lifecycle and health
 
@@ -84,12 +90,13 @@ The backend validates settings before opening SQLite or binding HTTP. All settin
 | `SEED_MODE` | `small` | `none`, `small`, or `large`. |
 | `JSON_BODY_LIMIT_BYTES` | `65536` | Integer 1–1,048,576. |
 | `SHUTDOWN_TIMEOUT_MS` | `10000` | Integer 1–60,000. |
+| `SOCKET_RECOVERY_MS` | `120000` | Integer 0–120,000 milliseconds; 0 disables in-memory connection recovery. |
 
 `GET /api/health/live` returns `200 {"status":"live"}` while the process serves HTTP. `GET /api/health/ready` returns `200 {"status":"ready"}` after migration/initialization and a successful database probe, or a retryable `503` when the database is inaccessible, initialization records are missing, or shutdown has begun. Health responses disable caching. Configuration, migration, and listener failures log their startup stage and exit unsuccessfully.
 
 Every Express response includes a generated UUID `X-Request-Id`; client-supplied IDs are ignored. Errors use the shared error envelope with that same ID. Unknown endpoints return JSON `404`; malformed/oversized JSON and schema validation failures return `400 VALIDATION_ERROR`. JSON compression is disabled. SQLite busy/locked errors, including wrapped driver errors, return `503 SERVICE_UNAVAILABLE`, `Retry-After: 1`, and `retryAfterMs: 1000`. Unexpected errors return a generic `500`; correlated internal diagnostics stay in server logs. No cross-origin grants are enabled; browsers use the frontend proxy.
 
-SIGINT/SIGTERM stop HTTP intake, reject new work on remaining connections, wait for active HTTP requests and registered socket cleanup, then close SQLite. The shutdown deadline forces remaining HTTP/upgraded connections closed and reports failure. The Socket.IO lifecycle attachment is ready for T08; no realtime server runs yet. See [T04 verification](docs/t04-verification.md) for test evidence.
+SIGINT/SIGTERM stop HTTP/socket intake, reject new work on remaining connections, drain active HTTP requests, close Socket.IO clients and recovery resources, then close SQLite. The shutdown deadline forces remaining HTTP/upgraded connections closed and reports failure. See [T04 verification](docs/t04-verification.md) and [T08 verification](docs/t08-verification.md) for test evidence.
 
 ## Workspace and toolchain
 
