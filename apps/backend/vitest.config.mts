@@ -6,7 +6,6 @@ export default defineConfig({
   test: {
     name: 'backend',
     environment: 'node',
-    include: ['src/**/*.spec.ts'],
-    passWithNoTests: true
+    include: ['src/**/*.spec.ts']
   }
 });

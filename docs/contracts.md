@@ -1,6 +1,6 @@
 # HTTP, checkout, and realtime contracts
 
-This is the target contract for implementation, not an existing API. Schemas and event maps will live in `libs/contracts`; the backend remains authoritative.
+Runtime schemas, inferred DTOs, money helpers, and event maps are implemented in `libs/contracts` (T02). The HTTP endpoints and Socket.IO server below remain target behavior for later tasks; the backend remains authoritative.
 
 ## 1. Common rules
 
@@ -18,12 +18,45 @@ type ApiError = {
     code: string;
     message: string;
     requestId: string;
-    details?: unknown; // Each documented code gets a concrete Zod schema.
+    details?: unknown; // Overview only; the library exports a strict code/detail union.
   };
 };
 ```
 
 Use 400 for malformed requests, 404 for missing resources, 409 for revision/checkout conflicts, 422 for business validation, and 503 for transient database/server unavailability. Map unexpected exceptions to 500 without exposing internals. HTTP clients show actionable messages and preserve drafts/cart state. Retry GET requests with bounded backoff; do not blindly retry non-idempotent writes.
+
+### Implemented shared library
+
+Import from `@restaurant-ordering/contracts`. Public schemas use camelCase names ending in `Schema`; DTOs are inferred from them with Zod, for example `createItemSchema` / `CreateItem`, `quoteSnapshotSchema` / `QuoteSnapshot`, and `orderSchema` / `Order`. The library's only runtime dependency besides tslib is Zod **4.6.7**. It contains no Angular, Express, database, Node, or Socket.IO implementation imports. Zod's [strict objects and discriminated unions](https://zod.dev/api) provide unknown-field rejection and code-specific type narrowing.
+
+- `common.ts`: UUIDs, UTC timestamps, USD, money/quantity/name limits, pagination, and sync revisions. Stream revisions start at zero; entity and expected revisions start at one. Query pagination accepts positive integers or digit-only strings, defaults to page 1 / size 50, and rejects sizes above 100. `includeArchived` accepts booleans or the exact query strings `true` / `false`, defaulting to false.
+- `menu.ts`: category/item DTOs; create, edit, archive, list, mutation response, and cart resolution schemas. Setup lists reuse the category/item response schemas. Open-item writes omit `priceMinor`; open-item responses carry `priceMinor: null`. An edit of fixed pricing sends both `pricingMode: 'fixed'` and `priceMinor`; switching to open sends only `pricingMode: 'open'`. Other edits omit both. Updates must include at least one change. Clear an item description by sending `description: null`.
+- `checkout.ts`: cart intent, snapshot lines, persisted quotes, review changes, and confirmation. `observedName` is optional alongside the other observed values, enabling an explicit old/new name difference. Persisted snapshots include `quoteId`, `createdAt`, and `expiresAt`; quote responses add `changes`. Snapshot lines capture item/category IDs and names, item revision, pricing mode, quantity, unit price, and line total. Quote change records contain `lineIndex`, `itemId`, `field` (`unitPriceMinor`, `revision`, or `name`), and typed `observed` / `current` values. Indexes are zero-based. Confirmation accepts only `{ quoteId }`; the idempotency key is a UUID header value.
+- `orders.ts`: immutable lines (snapshot fields plus line `id`), complete orders, list summaries without lines, detail/list responses, filters, and status updates. Responses wrap `{ order, ordersRevision }` or `{ orders, total, page, pageSize, ordersRevision }`. `canTransitionOrderStatus` implements only the five permitted transitions; a current-status no-op is handled separately by the service after checking revision.
+- `realtime.ts`: runtime `serverEventSchemas` and derived `ServerToClientEvents` callbacks for the three events below; `ClientToServerEvents` is empty. These types can parameterize Socket.IO later without importing it here.
+- `money.ts`: `parseDecimalMinor` parses a trimmed nonnegative decimal string with one or two optional fractional digits, with no floating-point multiplication. It rejects signs, exponents, separators, blank input, extra decimal places, unsafe amounts, and strings over 32 characters. `parseUnitPriceMinor` additionally enforces the unit-price limit. `calculateLineTotal` and `calculateTotals` validate inputs, reject unsafe sums/excessive discounts, and allow zero totals. Quote/order schemas independently check multiplication, sum, discount, and final-total consistency. Schema validation cannot certify current database prices or availability; those checks remain server responsibilities.
+
+### Concrete error details
+
+`apiErrorSchema` parses `{ error: ApiErrorBody }` as a strict discriminated union. All errors require a message and UUID `requestId`. Every code below except `INTERNAL_ERROR` requires its listed `details`; unknown detail fields are rejected. `ApiErrorDetails<'QUOTE_USED'>`, for example, infers `{ quoteId, orderId }`. `API_ERROR_STATUS` exports the HTTP mapping.
+
+| Code | HTTP | Required details |
+| --- | --- | --- |
+| `VALIDATION_ERROR` | 400 | `{ issues: [{ path: (string or nonnegative integer)[], code, message }] }`, nonempty |
+| `NOT_FOUND` | 404 | `{ resourceType, resourceId }`; type is category/item/quote/order/request |
+| `REVISION_CONFLICT` | 409 | `{ entityType, entityId, expectedRevision, currentRevision }`; type is category/item/order |
+| `CART_INVALID` | 422 | `{ issues: [{ lineIndex, itemId, code, message }] }`, 1–100 issues |
+| `DISCOUNT_EXCEEDS_SUBTOTAL` | 422 | `{ subtotalMinor, discountMinor }` |
+| `QUOTE_EXPIRED` | 409 | `{ quoteId, expiresAt }` |
+| `QUOTE_USED` | 409 | `{ quoteId, orderId }` |
+| `MENU_CHANGED` | 409 | `{ quoteId, quotedMenuRevision, currentMenuRevision }` |
+| `IDEMPOTENCY_CONFLICT` | 409 | `{ idempotencyKey }` |
+| `INVALID_STATUS_TRANSITION` | 409 | `{ orderId, currentStatus, requestedStatus, allowedStatuses }` |
+| `CATEGORY_ARCHIVED` | 422 | `{ categoryId }` |
+| `SERVICE_UNAVAILABLE` | 503 | `{ retryAfterMs }` |
+| `INTERNAL_ERROR` | 500 | No details field; internal exceptions are never public DTOs. |
+
+Cart issue codes are `ITEM_MISSING`, `ITEM_ARCHIVED`, `CATEGORY_ARCHIVED`, `ITEM_UNAVAILABLE`, `OPEN_PRICE_REQUIRED`, and `FIXED_PRICE_OVERRIDE`. Quote preparation uses them to identify lines requiring correction; changed fixed prices/revisions/names instead appear as visible review changes for valid carts. Excessive discounts use the separate discount error. These are contracts for future error middleware/services, not implemented HTTP handlers.
 
 ## 2. HTTP surface
 
@@ -56,9 +89,9 @@ Read each list/snapshot and its associated stream revision in one short database
 
 The cart is an intent; a quote is the exact server result the user reviews. An order is created only from a still-valid quote.
 
-1. **Prepare review.** Send cart lines `{ itemId, quantity, openPriceMinor?, observedRevision, observedUnitPriceMinor? }` and `discountMinor` to `POST /checkout/quotes`. Observed fields describe the UI's last known state, not trusted prices.
+1. **Prepare review.** Send cart lines `{ itemId, quantity, openPriceMinor?, observedRevision, observedUnitPriceMinor?, observedName? }` and `discountMinor` to `POST /checkout/quotes`. Observed fields describe the UI's last known state, not trusted prices.
 2. **Validate and persist.** In a short transaction, load current items/categories and menu revision. Validate availability, pricing mode, quantities, discount, and all arithmetic. An unavailable/archived/missing item or incompatible open-price mode returns `422 CART_INVALID` with per-line issues and no quote. Return field validation for an excessive discount; never silently clamp it.
-3. **Return review.** For a valid cart, save a quote with a five-minute server-side expiry, menu revision, and immutable line/total snapshot. Return `{ quoteId, expiresAt, menuRevision, lines, subtotalMinor, discountMinor, totalMinor, currency, changes }`. `changes` explicitly identifies observed-to-current price/name/revision differences. Fixed prices are always recalculated. Quote generation does not place an order.
+3. **Return review.** For a valid cart, save a quote with a five-minute server-side expiry, menu revision, and immutable line/total snapshot. Return `{ quoteId, createdAt, expiresAt, menuRevision, lines, subtotalMinor, discountMinor, totalMinor, currency, changes }`. `changes` explicitly identifies observed-to-current price/name/revision differences when their observed fields were supplied. Fixed prices are always recalculated. Quote generation does not place an order.
 4. **Explicit confirmation.** Show all lines, changed values, discount, and final total. The user clicks Confirm after seeing that result. Any local cart edit discards the quote. A received menu-change event disables confirmation and requests a new review. Never auto-confirm when a fresh quote arrives.
 5. **Persist the attempt before sending.** Generate a UUID idempotency key, persist it with the exact `{ quoteId }` payload in sessionStorage, and freeze that checkout attempt. Double-clicks and retries reuse both values. If persistence is unavailable, keep the key in memory and explain that reloading could lose recovery state.
 6. **Commit atomically.** The server performs the transaction below, checking the database again even if the socket and UI report everything is current.

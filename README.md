@@ -1,6 +1,6 @@
 # Restaurant Ordering
 
-Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01 is implemented.** The apps currently serve workspace placeholders; ordering workflows, database setup, realtime behavior, and Docker deployment are later [tasks](docs/tasks.md).
+Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01 and T02 are implemented.** The apps currently serve workspace placeholders; ordering workflows, database setup, realtime behavior, and Docker deployment are later [tasks](docs/tasks.md).
 
 ## Local development
 
@@ -20,7 +20,7 @@ Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api>
 | `pnpm dev` | Watch and serve frontend and backend together. |
 | `pnpm lint` | ESLint, Angular template accessibility, and Nx import boundaries. |
 | `pnpm typecheck` | Strict TypeScript for all four projects, plus Angular template checking. |
-| `pnpm test` | Vitest targets; reports empty feature suites explicitly. |
+| `pnpm test` | Contract/money boundary tests and browser/server contract-consumer tests. |
 | `pnpm build` | Production frontend/backend builds and contracts declarations in `dist/`. |
 | `pnpm check` | Lint, typecheck, test, and build sequentially. |
 | `pnpm e2e` | Chromium smoke test using its own frontend/backend servers. Stop `pnpm dev` first. |
@@ -28,7 +28,7 @@ Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api>
 
 Before the first E2E run, download Chromium with `pnpm exec playwright install chromium` (Linux CI may need `--with-deps`). E2E verifies that Angular renders in a real browser and that `/api` reaches Express through the frontend origin. Reports go to ignored `playwright-report/` and `test-results/` directories.
 
-No domain unit tests exist yet. Backend/contracts Vitest configurations allow empty suites. Angular's builder rejects an empty suite, so the frontend test command reports the empty state and automatically invokes `frontend:test-angular` once `src/**/*.spec.ts` or `src/**/*.test.ts` exists. Feature tests belong with their implementation tasks.
+Contract tests cover malformed requests, pricing modes, safe money arithmetic, snapshot totals, error details, status rules, and event payloads. Both app test targets import the contracts alias: Angular's Vitest builder verifies the browser consumer, and backend Vitest verifies request/recovery payload serialization. Backend/contracts test targets fail on empty suites. Additional feature tests belong with their implementation tasks.
 
 ## Workspace and toolchain
 
@@ -39,7 +39,7 @@ No domain unit tests exist yet. Backend/contracts Vitest configurations allow em
 | `contracts` | `libs/contracts` | Other shared code; runtime dependencies limited to Zod/tslib. |
 | `frontend-e2e` | `apps/frontend-e2e` | Frontend/shared code. |
 
-Import shared code through `@restaurant-ordering/contracts`. Nx tags enforce project boundaries; ESLint also rejects Node builtins, backend paths, and database packages in browser/shared source. Contracts currently export an empty module; runtime schemas start in T02. Vitest uses TypeScript path resolution for future contracts imports.
+Import shared code through `@restaurant-ordering/contracts`. Nx tags enforce project boundaries; ESLint also rejects Node builtins, backend paths, and database packages in browser/shared source. Contracts export Zod **4.6.7** schemas, inferred DTOs, exact decimal parsing and safe integer money helpers, order status rules, concrete errors, and typed socket event maps. See the [contract reference](docs/contracts.md) and [T02 verification](docs/t02-verification.md). App TypeScript source roots include the shared source library; Vitest resolves the same alias.
 
 Exact direct dependency versions live in `package.json`; `pnpm-lock.yaml` pins transitive dependencies. The resolved toolchain is Angular/CLI/Material/CDK **22.2.3**, Nx and all `@nx/*` packages **23.3.0**, NgRx Signals **22.0.1**, TypeScript **6.0.3**, RxJS **7.8.2**, Express **5.3.0**, Vitest **5.0.5**, Playwright **1.64.1**, ESLint **10.13.0**, and better-sqlite3 **13.0.3**. Installation enforces engines and strict peers. `pnpm-workspace.yaml` explicitly allows only the required dependency build scripts.
 

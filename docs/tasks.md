@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01 complete; T02–T16 not started**. Check a task only after its acceptance criteria are demonstrated. These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T02 complete; T03–T16 not started**. Check a task only after its acceptance criteria are demonstrated. These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -33,11 +33,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
   Completed 2026-10-18. See [verification results](t01-verification.md) and the [local startup README](../README.md).
 
-- [ ] **T02 — Define shared runtime contracts**
+- [x] **T02 — Define shared runtime contracts**
 
   Create Zod schemas and inferred DTOs for menu/setup, cart intent, persisted quote snapshot, order, status updates, pagination, revisions, errors, and Socket.IO event maps. Include money/quantity/string limits and concrete error-detail schemas from [contracts](contracts.md).
 
   Acceptance: both apps import the library without framework/server dependencies leaking across boundaries; representative malformed prices, quantities, enums, and unknown request fields are rejected. Decimal parsing and monetary arithmetic have focused boundary tests.
+
+  Completed 2026-10-18. See [verification results](t02-verification.md) and the [implemented contract reference](contracts.md). All 77 unit tests, root quality checks, frozen install, and existing browser smoke test pass.
 
 - [ ] **T03 — Implement schema, migrations, and seeds**
 

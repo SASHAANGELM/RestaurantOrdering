@@ -1,6 +1,6 @@
 # Restaurant Ordering — implementation documentation
 
-Architecture and implementation backlog, prepared on 2026-10-18. T01 workspace scaffolding is implemented; feature workflows, Dockerfiles, and Compose configuration remain in the backlog. Start locally using the [root README](../README.md); see [T01 verification](t01-verification.md) for demonstrated results.
+Architecture and implementation backlog, prepared on 2026-10-18. T01 workspace scaffolding and T02 shared runtime contracts are implemented; feature workflows, Dockerfiles, and Compose configuration remain in the backlog. Start locally using the [root README](../README.md); see [T01 verification](t01-verification.md) and [T02 verification](t02-verification.md) for demonstrated results.
 
 Read in this order:
 
@@ -33,4 +33,4 @@ One restaurant, boolean item availability, one persistent backend process, clien
 
 Setup supports creating, editing, and archiving categories/items. Archiving retains order history. Fixed discounts cannot exceed the subtotal; zero-total orders are permitted. The cart survives a page reload within its tab. The deployment targets one Docker host with persistent local storage; public hosting requires access control and TLS as a later step.
 
-T01 resolved and pinned compatible stable dependency versions against published compatibility guidance and peer metadata. T02 is the next task.
+T01 resolved and pinned compatible stable dependency versions against published compatibility guidance and peer metadata. T02 added framework-neutral Zod schemas and inferred DTOs, safe money helpers, typed error details, and Socket.IO event maps. T03 (schema, migrations, and seeds) is the next task.
