@@ -40,7 +40,7 @@ test('two browser contexts receive committed notifications through the same-orig
     expect(await page.evaluate(() => window.realtimeTest.socket.io.engine.transport.name)).toBe('polling');
     await expect.poll(() => second.evaluate(() => window.realtimeTest.socket.io.engine.transport.name)).toBe('websocket');
     const initial = syncStateSchema.parse(await page.evaluate(() => window.realtimeTest.states[0]));
-    expect(await second.evaluate(() => window.realtimeTest.states[0])).toEqual(initial);
+    const secondInitial = syncStateSchema.parse(await second.evaluate(() => window.realtimeTest.states[0]));
 
     const result = await page.evaluate(async () => {
       const response = await fetch('/api/setup/categories', {
@@ -52,15 +52,19 @@ test('two browser contexts receive committed notifications through the same-orig
     expect(result.status).toBe(201);
     const committed = categoryMutationResponseSchema.parse(result.body);
     for (const client of [page, second]) {
-      await expect.poll(() => client.evaluate(() => window.realtimeTest.menus.length)).toBe(1);
-      const event = menuChangedSchema.parse(await client.evaluate(() => window.realtimeTest.menus[0]));
+      // Other feature tests write to the same isolated server concurrently.
+      // Assert delivery of this commit without assuming it is the only commit.
+      await expect.poll(() => client.evaluate((id) => window.realtimeTest.menus.filter((event) => event.entityId === id).length, committed.category.id)).toBe(1);
+      const event = menuChangedSchema.parse(await client.evaluate((id) => window.realtimeTest.menus.find((event) => event.entityId === id), committed.category.id));
       expect(event).toMatchObject({ menuRevision: committed.menuRevision,
         entityType: 'category', entityId: committed.category.id, change: 'created' });
-      expect(event.menuRevision).toBe(initial.menuRevision + 1);
+      expect(event.menuRevision).toBeGreaterThan((client === page ? initial : secondInitial).menuRevision);
       const sync = syncStateSchema.parse(await client.evaluate(async () => (await fetch('/api/sync')).json()));
-      expect(sync).toEqual({ menuRevision: committed.menuRevision, ordersRevision: initial.ordersRevision });
+      expect(sync.menuRevision).toBeGreaterThanOrEqual(committed.menuRevision);
+      expect(sync.ordersRevision).toBeGreaterThanOrEqual((client === page ? initial : secondInitial).ordersRevision);
     }
-    expect(await second.evaluate(() => window.realtimeTest.menus)).toEqual(await page.evaluate(() => window.realtimeTest.menus));
+    const ownEvents = (client: Page) => client.evaluate((id) => window.realtimeTest.menus.filter((event) => event.entityId === id), committed.category.id);
+    expect(await ownEvents(second)).toEqual(await ownEvents(page));
   } finally {
     await page.evaluate(() => window.realtimeTest?.socket.disconnect());
     await context.close();

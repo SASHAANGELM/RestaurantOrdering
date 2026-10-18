@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01–T10 complete; T11–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T11 complete; T12–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -109,11 +109,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
   Completed 2026-10-18. See [verification results](t10-verification.md). Added category/item forms, bounded item pagination/search/category filters, category pagination, explicit archive confirmations, retained error drafts, and revision-conflict reload/review. Added 18 frontend tests and three Chromium scenarios proving two-browser live editing, open-price payloads, archive eligibility, concurrent conflicts, manual retry, pagination, and mobile/focus behavior. Uncached `pnpm check` passed with 43 frontend, 320 backend, and 75 contract tests and both production builds; all eight Chromium tests passed. The frontend build succeeds with a 9.86 kB initial-bundle warning above the existing 550 kB warning threshold; the 600 kB error budget is unchanged.
 
-- [ ] **T11 — Implement menu, cart, and large-menu behavior**
+- [x] **T11 — Implement menu, cart, and large-menu behavior**
 
   Build server-paged browsing, debounced search/category filtering, item availability, quantity entry, open-price dialog, cart line editing, fixed discount input, and live estimated totals. Store validated/versioned per-tab cart data in sessionStorage. Resolve cart items outside the visible page when menu changes.
 
   Acceptance: 5,000 seeded items do not cause a full-menu fetch/render; rows use stable IDs/skeleton dimensions. Different open prices remain separate cart lines. Unavailable/archived items and changed prices are visibly marked without deleting user intent. Cart survives route changes/reload; corrupt/unavailable storage does not crash. Unit/component tests cover money input, discounts, and retained state on errors.
+
+  Completed 2026-10-18. See [verification results](t11-verification.md). Added server-paged Menu browsing, 250 ms search/category filters, quantity/open-price addition, editable cart lines and fixed discounts, exact live estimates, validated per-tab persistence, and off-page reconciliation with retained intent and visible price/eligibility changes. Added 33 frontend tests, three Chromium cart/menu scenarios, and an isolated real 5,000-item browser fixture proving bounded pages and matching skeleton dimensions. Uncached `pnpm check` passed with 76 frontend, 320 backend, and 75 contract tests and both production builds; all 11 standard Chromium tests and the separate large-menu test passed. The initial bundle succeeds at 560.30 kB with a 10.30 kB warning above the unchanged 550 kB warning threshold. Checkout UI remains T12.
 
 - [ ] **T12 — Implement review, confirmation, and recovery UI**
 
