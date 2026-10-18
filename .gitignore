@@ -14,5 +14,6 @@ blob-report/
 *.sqlite-*
 *.db
 *.db-*
+data/
 .DS_Store
 *.log

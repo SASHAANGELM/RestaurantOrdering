@@ -16,7 +16,12 @@
     "build": "nx run-many -t build",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "e2e": "nx run frontend-e2e:e2e",
-    "verify:native": "node tools/verify-native.cjs"
+    "verify:native": "node tools/verify-native.cjs",
+    "db:generate": "drizzle-kit generate --config apps/backend/drizzle.config.ts",
+    "db:check": "drizzle-kit check --config apps/backend/drizzle.config.ts",
+    "db:migrate": "nx build backend && node dist/apps/backend/database-cli.cjs migrate",
+    "db:seed:small": "nx build backend && node dist/apps/backend/database-cli.cjs seed-small",
+    "db:seed:large": "nx build backend && node dist/apps/backend/database-cli.cjs seed-large"
   },
   "dependencies": {
     "@angular/cdk": "22.2.3",
@@ -29,17 +34,18 @@
     "@angular/router": "22.2.3",
     "@ngrx/signals": "22.0.1",
     "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.4",
     "express": "5.3.0",
     "rxjs": "7.8.2",
     "tslib": "2.8.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@angular-devkit/core": "22.2.3",
+    "@angular-devkit/schematics": "22.2.3",
     "@angular/build": "22.2.3",
     "@angular/cli": "22.2.3",
     "@angular/compiler-cli": "22.2.3",
-    "@angular-devkit/core": "22.2.3",
-    "@angular-devkit/schematics": "22.2.3",
     "@eslint/js": "10.0.1",
     "@nx/angular": "23.3.0",
     "@nx/esbuild": "23.3.0",
@@ -54,6 +60,7 @@
     "@types/express": "5.0.6",
     "@types/node": "24.19.2",
     "angular-eslint": "22.6.0",
+    "drizzle-kit": "0.31.11",
     "esbuild": "0.28.2",
     "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",

@@ -42,7 +42,7 @@ Sources: [Angular release policy](https://angular.dev/reference/releases), [Angu
 
 ## 3. Repository layout and boundaries
 
-Target layout. T01 created the apps/contracts projects and toolchain configuration; T02 implemented the shared schemas, DTOs, errors, event maps, and money helpers. Feature folders, database files, and deployment files arrive in later tasks:
+Target layout. T01 created the apps/contracts projects and toolchain configuration; T02 implemented the shared schemas, DTOs, errors, event maps, and money helpers. T03 added the database schema, migration runner/assets, seeds, and startup initialization. Feature folders and deployment files arrive in later tasks:
 
 ```text
 apps/
@@ -114,12 +114,12 @@ All IDs are opaque UUIDs. Timestamps are UTC. Prices, discounts, and totals are 
 
 | Table | Essential columns and constraints |
 | --- | --- |
-| `app_state` | Singleton row: `menu_revision`, `orders_revision`. |
+| `app_state` | Singleton row: `menu_revision`, `orders_revision`, nullable `demo_seed_mode` to prevent reseeding. |
 | `categories` | `id`, `name`, `sort_order`, `archived_at`, `revision`, timestamps. |
 | `menu_items` | `id`, `category_id` FK, `name`, optional description, `pricing_mode` (`fixed`/`open`), nullable `price_minor`, `available`, `archived_at`, `revision`, timestamps. |
 | `checkout_quotes` | `id`, `menu_revision`, validated immutable snapshot JSON, `currency`, `created_at`, `expires_at`. Server-generated only. |
 | `orders` | `id`, `quote_id` UNIQUE FK, `idempotency_key` UNIQUE NOT NULL, `request_hash`, `status`, `subtotal_minor`, `discount_minor`, `total_minor`, `currency`, `revision`, timestamps. |
-| `order_lines` | `id`, `order_id` FK, `item_id` FK, item/category name snapshots, pricing mode snapshot, `unit_price_minor`, `quantity`, `line_total_minor`. |
+| `order_lines` | `id`, `order_id` FK, per-order unique `line_index`, `item_id`/`category_id` FKs, item/category name snapshots, `item_revision`, pricing mode snapshot, `unit_price_minor`, `quantity`, `line_total_minor`. |
 
 Foreign keys enabled on every connection; WAL mode and a finite busy timeout (initially 5 seconds). Use CHECK constraints for enums, booleans, nonnegative money, positive quantities, and `total = subtotal - discount`. Fixed items require `price_minor`; open items require it to be null. The service also validates all constraints and safe-integer arithmetic. Index item category/archive fields, order creation timestamp plus ID, order status, and quote expiry. Unique indexes on quote/key enforce checkout safety independently of UI state.
 
@@ -165,7 +165,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-T01 provides `pnpm install --frozen-lockfile` and `pnpm dev` for both placeholder apps with the Angular dev proxy. T03/T04 will add development migration/seed initialization. Docker startup remains T14. Defaults will require no `.env` copy; `.env.example` will document optional port/path/seed overrides. Local DB files and `.env` stay outside version control and Docker build contexts.
+T01 provides `pnpm install --frozen-lockfile` and `pnpm dev` for both placeholder apps with the Angular dev proxy. T03 adds migration/seed initialization before listening; T04 adds full configuration validation, health checks, error handling, and graceful shutdown. Docker startup remains T14. Defaults require no `.env` copy; `.env.example` will document optional port/path/seed overrides. Local DB files and `.env` stay outside version control and will be excluded from Docker build contexts.
 
 ## 8. Trade-offs and production follow-up
 

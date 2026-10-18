@@ -1,0 +1,752 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "2fd551c5-2fa3-4e0d-92ac-ee37330ee06f",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "app_state": {
+      "name": "app_state",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "menu_revision": {
+          "name": "menu_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "orders_revision": {
+          "name": "orders_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "demo_seed_mode": {
+          "name": "demo_seed_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "app_state_singleton": {
+          "name": "app_state_singleton",
+          "value": "\"app_state\".\"id\" = 1"
+        },
+        "app_state_menu_revision": {
+          "name": "app_state_menu_revision",
+          "value": "typeof(\"app_state\".\"menu_revision\") = 'integer' AND \"app_state\".\"menu_revision\" BETWEEN 0 AND 9007199254740991"
+        },
+        "app_state_orders_revision": {
+          "name": "app_state_orders_revision",
+          "value": "typeof(\"app_state\".\"orders_revision\") = 'integer' AND \"app_state\".\"orders_revision\" BETWEEN 0 AND 9007199254740991"
+        },
+        "app_state_seed_mode": {
+          "name": "app_state_seed_mode",
+          "value": "\"app_state\".\"demo_seed_mode\" IS NULL OR \"app_state\".\"demo_seed_mode\" IN ('small', 'large')"
+        }
+      }
+    },
+    "categories": {
+      "name": "categories",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "categories_active_sort_idx": {
+          "name": "categories_active_sort_idx",
+          "columns": [
+            "archived_at",
+            "sort_order",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "categories_name": {
+          "name": "categories_name",
+          "value": "length(trim(\"categories\".\"name\")) BETWEEN 1 AND 120"
+        },
+        "categories_sort_order": {
+          "name": "categories_sort_order",
+          "value": "typeof(\"categories\".\"sort_order\") = 'integer' AND \"categories\".\"sort_order\" BETWEEN -9007199254740991 AND 9007199254740991"
+        },
+        "categories_revision": {
+          "name": "categories_revision",
+          "value": "typeof(\"categories\".\"revision\") = 'integer' AND \"categories\".\"revision\" BETWEEN 1 AND 9007199254740991"
+        }
+      }
+    },
+    "checkout_quotes": {
+      "name": "checkout_quotes",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "menu_revision": {
+          "name": "menu_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "snapshot_json": {
+          "name": "snapshot_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'USD'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "checkout_quotes_expiry_idx": {
+          "name": "checkout_quotes_expiry_idx",
+          "columns": [
+            "expires_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "checkout_quotes_revision": {
+          "name": "checkout_quotes_revision",
+          "value": "typeof(\"checkout_quotes\".\"menu_revision\") = 'integer' AND \"checkout_quotes\".\"menu_revision\" BETWEEN 0 AND 9007199254740991"
+        },
+        "checkout_quotes_json": {
+          "name": "checkout_quotes_json",
+          "value": "json_valid(\"checkout_quotes\".\"snapshot_json\")"
+        },
+        "checkout_quotes_currency": {
+          "name": "checkout_quotes_currency",
+          "value": "\"checkout_quotes\".\"currency\" = 'USD'"
+        },
+        "checkout_quotes_expiry": {
+          "name": "checkout_quotes_expiry",
+          "value": "\"checkout_quotes\".\"expires_at\" > \"checkout_quotes\".\"created_at\""
+        }
+      }
+    },
+    "menu_items": {
+      "name": "menu_items",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "pricing_mode": {
+          "name": "pricing_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "price_minor": {
+          "name": "price_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "available": {
+          "name": "available",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        }
+      },
+      "indexes": {
+        "menu_items_category_active_idx": {
+          "name": "menu_items_category_active_idx",
+          "columns": [
+            "category_id",
+            "archived_at",
+            "name",
+            "id"
+          ],
+          "isUnique": false
+        },
+        "menu_items_active_idx": {
+          "name": "menu_items_active_idx",
+          "columns": [
+            "archived_at",
+            "name",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "menu_items_category_id_categories_id_fk": {
+          "name": "menu_items_category_id_categories_id_fk",
+          "tableFrom": "menu_items",
+          "tableTo": "categories",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "menu_items_name": {
+          "name": "menu_items_name",
+          "value": "length(trim(\"menu_items\".\"name\")) BETWEEN 1 AND 120"
+        },
+        "menu_items_description": {
+          "name": "menu_items_description",
+          "value": "\"menu_items\".\"description\" IS NULL OR length(\"menu_items\".\"description\") <= 2000"
+        },
+        "menu_items_pricing": {
+          "name": "menu_items_pricing",
+          "value": "(\n    \"menu_items\".\"pricing_mode\" = 'fixed' AND \"menu_items\".\"price_minor\" IS NOT NULL AND typeof(\"menu_items\".\"price_minor\") = 'integer' AND \"menu_items\".\"price_minor\" BETWEEN 0 AND 1000000\n  ) OR (\"menu_items\".\"pricing_mode\" = 'open' AND \"menu_items\".\"price_minor\" IS NULL)"
+        },
+        "menu_items_available": {
+          "name": "menu_items_available",
+          "value": "typeof(\"menu_items\".\"available\") = 'integer' AND \"menu_items\".\"available\" BETWEEN 0 AND 1"
+        },
+        "menu_items_revision": {
+          "name": "menu_items_revision",
+          "value": "typeof(\"menu_items\".\"revision\") = 'integer' AND \"menu_items\".\"revision\" BETWEEN 1 AND 9007199254740991"
+        }
+      }
+    },
+    "order_lines": {
+      "name": "order_lines",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "line_index": {
+          "name": "line_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "item_name": {
+          "name": "item_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "category_name": {
+          "name": "category_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "item_revision": {
+          "name": "item_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pricing_mode": {
+          "name": "pricing_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "unit_price_minor": {
+          "name": "unit_price_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "line_total_minor": {
+          "name": "line_total_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "order_lines_position_unique": {
+          "name": "order_lines_position_unique",
+          "columns": [
+            "order_id",
+            "line_index"
+          ],
+          "isUnique": true
+        },
+        "order_lines_item_idx": {
+          "name": "order_lines_item_idx",
+          "columns": [
+            "item_id"
+          ],
+          "isUnique": false
+        },
+        "order_lines_category_idx": {
+          "name": "order_lines_category_idx",
+          "columns": [
+            "category_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "order_lines_order_id_orders_id_fk": {
+          "name": "order_lines_order_id_orders_id_fk",
+          "tableFrom": "order_lines",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "order_lines_item_id_menu_items_id_fk": {
+          "name": "order_lines_item_id_menu_items_id_fk",
+          "tableFrom": "order_lines",
+          "tableTo": "menu_items",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "order_lines_category_id_categories_id_fk": {
+          "name": "order_lines_category_id_categories_id_fk",
+          "tableFrom": "order_lines",
+          "tableTo": "categories",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "order_lines_index": {
+          "name": "order_lines_index",
+          "value": "typeof(\"order_lines\".\"line_index\") = 'integer' AND \"order_lines\".\"line_index\" BETWEEN 0 AND 99"
+        },
+        "order_lines_item_name": {
+          "name": "order_lines_item_name",
+          "value": "length(trim(\"order_lines\".\"item_name\")) BETWEEN 1 AND 120"
+        },
+        "order_lines_category_name": {
+          "name": "order_lines_category_name",
+          "value": "length(trim(\"order_lines\".\"category_name\")) BETWEEN 1 AND 120"
+        },
+        "order_lines_item_revision": {
+          "name": "order_lines_item_revision",
+          "value": "typeof(\"order_lines\".\"item_revision\") = 'integer' AND \"order_lines\".\"item_revision\" BETWEEN 1 AND 9007199254740991"
+        },
+        "order_lines_pricing": {
+          "name": "order_lines_pricing",
+          "value": "\"order_lines\".\"pricing_mode\" IN ('fixed', 'open')"
+        },
+        "order_lines_unit_price": {
+          "name": "order_lines_unit_price",
+          "value": "typeof(\"order_lines\".\"unit_price_minor\") = 'integer' AND \"order_lines\".\"unit_price_minor\" BETWEEN 0 AND 1000000"
+        },
+        "order_lines_quantity": {
+          "name": "order_lines_quantity",
+          "value": "typeof(\"order_lines\".\"quantity\") = 'integer' AND \"order_lines\".\"quantity\" BETWEEN 1 AND 99"
+        },
+        "order_lines_total": {
+          "name": "order_lines_total",
+          "value": "typeof(\"order_lines\".\"line_total_minor\") = 'integer' AND \"order_lines\".\"line_total_minor\" BETWEEN 0 AND 9007199254740991"
+        },
+        "order_lines_arithmetic": {
+          "name": "order_lines_arithmetic",
+          "value": "\"order_lines\".\"line_total_minor\" = \"order_lines\".\"unit_price_minor\" * \"order_lines\".\"quantity\""
+        }
+      }
+    },
+    "orders": {
+      "name": "orders",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quote_id": {
+          "name": "quote_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'placed'"
+        },
+        "subtotal_minor": {
+          "name": "subtotal_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "discount_minor": {
+          "name": "discount_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "total_minor": {
+          "name": "total_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'USD'"
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "orders_quote_unique": {
+          "name": "orders_quote_unique",
+          "columns": [
+            "quote_id"
+          ],
+          "isUnique": true
+        },
+        "orders_idempotency_key_unique": {
+          "name": "orders_idempotency_key_unique",
+          "columns": [
+            "idempotency_key"
+          ],
+          "isUnique": true
+        },
+        "orders_created_idx": {
+          "name": "orders_created_idx",
+          "columns": [
+            "created_at",
+            "id"
+          ],
+          "isUnique": false
+        },
+        "orders_status_created_idx": {
+          "name": "orders_status_created_idx",
+          "columns": [
+            "status",
+            "created_at",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "orders_quote_id_checkout_quotes_id_fk": {
+          "name": "orders_quote_id_checkout_quotes_id_fk",
+          "tableFrom": "orders",
+          "tableTo": "checkout_quotes",
+          "columnsFrom": [
+            "quote_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "orders_request_hash": {
+          "name": "orders_request_hash",
+          "value": "length(\"orders\".\"request_hash\") = 64 AND \"orders\".\"request_hash\" NOT GLOB '*[^0-9a-f]*'"
+        },
+        "orders_status": {
+          "name": "orders_status",
+          "value": "\"orders\".\"status\" IN ('placed', 'preparing', 'ready', 'completed', 'cancelled')"
+        },
+        "orders_subtotal": {
+          "name": "orders_subtotal",
+          "value": "typeof(\"orders\".\"subtotal_minor\") = 'integer' AND \"orders\".\"subtotal_minor\" BETWEEN 0 AND 9007199254740991"
+        },
+        "orders_discount": {
+          "name": "orders_discount",
+          "value": "typeof(\"orders\".\"discount_minor\") = 'integer' AND \"orders\".\"discount_minor\" BETWEEN 0 AND 9007199254740991"
+        },
+        "orders_total": {
+          "name": "orders_total",
+          "value": "typeof(\"orders\".\"total_minor\") = 'integer' AND \"orders\".\"total_minor\" BETWEEN 0 AND 9007199254740991"
+        },
+        "orders_totals": {
+          "name": "orders_totals",
+          "value": "\"orders\".\"discount_minor\" <= \"orders\".\"subtotal_minor\" AND \"orders\".\"total_minor\" = \"orders\".\"subtotal_minor\" - \"orders\".\"discount_minor\""
+        },
+        "orders_currency": {
+          "name": "orders_currency",
+          "value": "\"orders\".\"currency\" = 'USD'"
+        },
+        "orders_revision": {
+          "name": "orders_revision",
+          "value": "typeof(\"orders\".\"revision\") = 'integer' AND \"orders\".\"revision\" BETWEEN 1 AND 9007199254740991"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

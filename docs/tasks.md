@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01–T02 complete; T03–T16 not started**. Check a task only after its acceptance criteria are demonstrated. These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T03 complete; T04–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -41,11 +41,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
   Completed 2026-10-18. See [verification results](t02-verification.md) and the [implemented contract reference](contracts.md). All 77 unit tests, root quality checks, frozen install, and existing browser smoke test pass.
 
-- [ ] **T03 — Implement schema, migrations, and seeds**
+- [x] **T03 — Implement schema, migrations, and seeds**
 
   Add Drizzle schema/migrations for categories/items, quotes, orders/lines, and persisted stream revisions. Enable foreign keys, WAL, busy timeout, checks, indexes, unique request keys, and unique quote consumption. Add explicit small/large seed modes; a 5,000-item dataset; ignored local DB paths; startup-safe demo initialization.
 
   Acceptance: a fresh DB migrates and seeds; a second migration/seed/restart does not duplicate/overwrite data. Constraints reject invalid money and duplicate key/quote consumption. Real-file tests verify order lines survive menu archival and that data/revisions survive reopening. Quote cleanup never removes referenced records.
+
+  Completed 2026-10-18. See [verification results](t03-verification.md) and [database commands](../README.md#database). Added 51 real-file persistence tests; all 128 unit tests, uncached frontend/backend builds, root quality checks, frozen install, migration checks, compiled startup/restart smoke, and existing Chromium E2E test pass.
 
 - [ ] **T04 — Implement Express lifecycle and common errors**
 
