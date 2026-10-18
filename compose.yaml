@@ -1,0 +1,30 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      DATABASE_PATH: /data/restaurant.sqlite
+      SEED_MODE: "${SEED_MODE:-small}"
+    volumes:
+      - restaurant-data:/data
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+volumes:
+  restaurant-data:

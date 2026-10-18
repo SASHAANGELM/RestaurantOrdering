@@ -147,13 +147,13 @@ Socket.IO's default delivery is at most once; its connection-state recovery can 
 | `frontend` | Nginx serves built Angular assets; proxies `/api/` and `/socket.io/` to `backend:3000`. | Publish host port 8080 by default. No persistent volume. |
 | `backend` | Node runs Express and Socket.IO on the same HTTP server; applies migrations, optionally seeds an empty demo DB. | Internal port 3000; named `restaurant-data` volume at `/data`; SQLite path `/data/restaurant.sqlite`. |
 
-`compose.yaml` will define exactly these two services and the named volume. SQLite is embedded; it is not a third service. Multi-stage builds use the repository root as build context so both apps can consume contracts and the lockfile. Build/install better-sqlite3 for the Linux runtime ABI inside the image; never copy host `node_modules`. Prefer a Debian slim Node runtime for predictable native-addon support. Build images with frozen dependencies and a non-root backend user that owns `/data`.
+`compose.yaml` defines exactly these two services and the named volume. SQLite is embedded; it is not a third service. Multi-stage builds use the repository root as build context so both apps can consume contracts and the lockfile. better-sqlite3 compiles for the Linux runtime ABI inside the Debian slim Node build image; host `node_modules` is excluded. Both images install frozen dependencies and run as non-root users; the backend user owns `/data`, including a newly initialized named volume.
 
 Frontend assets use relative `/api` and `/socket.io` paths, so one image works on another host without embedding the backend hostname. Nginx preserves the Socket.IO path, supports WebSocket Upgrade and HTTP polling, and uses proxy timeouts longer than heartbeat settings. Deep Angular routes fall back to `index.html`; API/socket errors never fall back to HTML. Cache hashed assets immutably and keep index HTML revalidated.
 
 Readiness: backend `/api/health/ready` checks migrations/database access; liveness `/api/health/live` checks the running process. Frontend has its own health endpoint. Compose waits for backend health before starting frontend; runtime failures still appear as recoverable UI errors. Handle SIGTERM by stopping HTTP/socket intake and closing the DB cleanly. Document that `docker compose down` preserves data and `down -v` deletes it.
 
-Target run commands after implementation:
+Run commands:
 
 ```sh
 docker compose up --build
@@ -166,7 +166,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-T01 provides `pnpm install --frozen-lockfile` and `pnpm dev` with the Angular dev proxy. T03 added migration/seed initialization before listening; T04 implemented configuration validation, health checks, error handling, and graceful shutdown, including a lifecycle hook for T08's Socket.IO server. Docker startup remains T14. Defaults require no `.env` copy; the root README documents settings and `.env.example` will accompany deployment. Local DB files and `.env` stay outside version control and will be excluded from Docker build contexts.
+T01 provides `pnpm install --frozen-lockfile` and `pnpm dev` with the Angular dev proxy. T03 added migration/seed initialization before listening; T04 implemented configuration validation, health checks, error handling, and graceful shutdown, including a lifecycle hook for T08's Socket.IO server. T14 adds Docker startup and an isolated `pnpm docker:smoke` deployment test. Defaults require no `.env` copy; the root README and `.env.example` document optional settings. Local DB files and `.env` stay outside version control and are excluded from Docker build contexts.
 
 ## 8. Trade-offs and production follow-up
 

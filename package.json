@@ -16,6 +16,7 @@
     "build": "nx run-many -t build",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "e2e": "nx run frontend-e2e:e2e",
+    "docker:smoke": "node tools/docker-smoke.cjs",
     "verify:native": "node tools/verify-native.cjs",
     "db:generate": "drizzle-kit generate --config apps/backend/drizzle.config.ts",
     "db:check": "drizzle-kit check --config apps/backend/drizzle.config.ts",

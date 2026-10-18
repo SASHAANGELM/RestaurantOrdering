@@ -4,7 +4,7 @@ Read this index first every time you need the next task or a list of all tasks.
 Then open the relevant task file for its scope, acceptance criteria, completion
 record, and verification results; read dependency files only as needed.
 
-All 16 tasks are required for the agreed prototype. **13 complete; 3 not started.**
+All 16 tasks are required for the agreed prototype. **14 complete; 2 not started.**
 
 | ID | Task | Status | Depends on |
 | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ All 16 tasks are required for the agreed prototype. **13 complete; 3 not started
 | T11 | [Implement menu, cart, and large-menu behavior](t11-implement-menu-cart-and-large-menu-behavior.md) | Complete | [T05](t05-implement-menu-configuration-and-query-apis.md), [T08](t08-implement-socket-io-and-revision-synchronization.md), [T09](t09-implement-angular-shell-and-client-adapters.md) |
 | T12 | [Implement review, confirmation, and recovery UI](t12-implement-review-confirmation-and-recovery-ui.md) | Complete | [T06](t06-implement-authoritative-checkout-quotes.md), [T07](t07-implement-idempotent-orders-and-status-transitions.md), [T11](t11-implement-menu-cart-and-large-menu-behavior.md) |
 | T13 | [Implement Orders UI and manual statuses](t13-implement-orders-ui-and-manual-statuses.md) | Complete | [T07](t07-implement-idempotent-orders-and-status-transitions.md), [T08](t08-implement-socket-io-and-revision-synchronization.md), [T09](t09-implement-angular-shell-and-client-adapters.md) |
-| T14 | [Implement two-service Docker deployment](t14-implement-two-service-docker-deployment.md) | Not started | [T08](t08-implement-socket-io-and-revision-synchronization.md), [T09](t09-implement-angular-shell-and-client-adapters.md) |
+| T14 | [Implement two-service Docker deployment](t14-implement-two-service-docker-deployment.md) | Complete | [T08](t08-implement-socket-io-and-revision-synchronization.md), [T09](t09-implement-angular-shell-and-client-adapters.md) |
 | T15 | [Complete reliability, performance, and CI verification](t15-complete-reliability-performance-and-ci-verification.md) | Not started | [T10](t10-implement-setup-ui.md), [T12](t12-implement-review-confirmation-and-recovery-ui.md), [T13](t13-implement-orders-ui-and-manual-statuses.md), [T14](t14-implement-two-service-docker-deployment.md) |
 | T16 | [Complete README and handoff](t16-complete-readme-and-handoff.md) | Not started | [T15](t15-complete-reliability-performance-and-ci-verification.md) |
 

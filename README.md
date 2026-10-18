@@ -1,6 +1,22 @@
 # Restaurant Ordering
 
-Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T13 are implemented.** The frontend provides a lazy Material shell, validated HTTP adapters, NgRx SignalStores, one shared socket, visible synchronization/recovery, Setup forms with archive/conflict recovery, and a paged Menu with a persistent per-tab cart, open prices, discounts, live estimates, and explicit quote review/confirmation with persisted checkout recovery. The backend provides SQLite persistence, health/lifecycle handling, menu APIs, authoritative quotes, idempotent orders/recovery, manual statuses, and persisted revision synchronization. Docker deployment and final verification remain later [tasks](docs/tasks/README.md).
+Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. The frontend provides a lazy Material shell, validated HTTP adapters, NgRx SignalStores, one shared socket, visible synchronization/recovery, Setup forms with archive/conflict recovery, and a paged Menu with a persistent per-tab cart, open prices, discounts, live estimates, and explicit quote review/confirmation with persisted checkout recovery. The backend provides SQLite persistence, health/lifecycle handling, menu APIs, authoritative quotes, idempotent orders/recovery, manual statuses, and persisted revision synchronization. See the [task index](docs/tasks/README.md) for implementation and verification status.
+
+## Docker
+
+With Docker Engine/Desktop running and Docker Compose v2.20 or newer:
+
+```sh
+docker compose up --build
+```
+
+Open <http://localhost:8080>. Exactly two services run: Nginx `frontend` and Node `backend`. Startup applies migrations and seeds a small demo menu in the fresh `restaurant-data` named volume before frontend readiness. No Node installation, `.env` setup, or separate database command is needed. Both images run as non-root users; native SQLite dependencies compile inside the Linux build image. The backend is reachable through the frontend's relative `/api` and `/socket.io` proxies and has no published host port.
+
+`docker compose down` preserves the database. `docker compose up --build` reuses it, including orders and menu edits. **`docker compose down -v` deletes this stack's database volume.** Stop/restart only the backend with `docker compose stop backend` and `docker compose up -d backend` to see cached content, a visible disconnection, and automatic reconnection. Nginx also resolves the replacement backend after `docker compose up -d --force-recreate backend`.
+
+Optional settings are in [.env.example](.env.example): `FRONTEND_PORT` defaults to `8080`; `SEED_MODE` defaults to `small` and affects only a fresh, empty database. No host-specific API URL is compiled into the frontend. `docker compose ps` reports health; `/health` checks Nginx and `/api/health/ready` checks backend/database readiness. Compose waits for backend health at startup; a later backend outage leaves frontend pages accessible with recoverable errors. SIGTERM drains the backend within its 10-second deadline; Compose allows 15 seconds before killing it.
+
+With the local toolchain and Playwright Chromium installed, `pnpm docker:smoke` builds and starts a unique disposable Compose project on a random loopback port. It checks health, non-root execution, fresh seeding, static caching/deep links, API errors, polling/WebSocket upgrades, order creation, clean shutdown, UI recovery, and persistence/idempotency through restart and recreation. It removes only its own containers/network/volume afterward and never touches the default stack or development database. Failure traces go to `test-results/docker/`.
 
 ## Local development
 
@@ -23,7 +39,8 @@ Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api>
 | `pnpm test` | Contract/money boundaries, browser/server contract consumers, isolated persistence, menu/checkout/order API/service, realtime/sync, and HTTP/lifecycle tests. |
 | `pnpm build` | Production frontend/backend builds and contracts declarations in `dist/`. |
 | `pnpm check` | Lint, typecheck, test, and build sequentially. |
-| `pnpm e2e` | Chromium Menu/cart/checkout recovery, Setup forms, Orders filters/statuses/conflicts/pagination, shell/API, keyboard/focus, live-store/offline recovery, deep-link, and two-context realtime proxy tests using their own frontend/backend servers. Stop `pnpm dev` first and run after builds finish. |
+| `pnpm e2e --workers=1` | Chromium Menu/cart/checkout recovery, Setup forms, Orders filters/statuses/conflicts/pagination, shell/API, keyboard/focus, live-store/offline recovery, deep-link, and two-context realtime proxy tests using their own frontend/backend servers. Stop `pnpm dev` first and run after builds finish. |
+| `pnpm docker:smoke` | Build and verify the production Compose deployment in an isolated project and disposable database volume; requires Docker and Playwright Chromium. |
 | `pnpm verify:native` | Exercise better-sqlite3 in memory and print runtime/driver compatibility. |
 | `pnpm db:generate` | Generate a reviewed SQL migration after changing the Drizzle schema. |
 | `pnpm db:check` | Check the migration history for collisions. |
@@ -33,7 +50,7 @@ Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api>
 
 Every implementation task must pass **both app unit-test targets and both production builds** before completion. This requirement is recorded in [AGENTS.md](AGENTS.md); `pnpm check` runs those checks along with lint, strict typechecking, and shared contract tests.
 
-Before the first E2E run, download Chromium with `pnpm exec playwright install chromium` (Linux CI may need `--with-deps`). E2E verifies that Angular renders in a real browser, `/api` reaches Express through the frontend origin, and two independent browser contexts receive committed notifications through polling and WebSocket upgrade proxies. Its backend uses an isolated in-memory database with seeding disabled. Reports go to ignored `playwright-report/` and `test-results/` directories. Run the separate real 5,000-item fixture with `pnpm exec playwright test --config apps/frontend-e2e/playwright.large.config.ts`; it uses its own in-memory database seeded in large mode. Run browser suites sequentially because each owns ports 3000/4200.
+Before the first E2E run, download Chromium with `pnpm exec playwright install chromium` (Linux CI may need `--with-deps`). E2E verifies that Angular renders in a real browser, `/api` reaches Express through the frontend origin, and two independent browser contexts receive committed notifications through polling and WebSocket upgrade proxies. Its backend uses an isolated in-memory database with seeding disabled. Use `pnpm e2e --workers=1`: tests share that backend, and concurrent menu edits can invalidate another test's checkout review. Reports go to ignored `playwright-report/` and `test-results/` directories. Run the separate real 5,000-item fixture with `pnpm exec playwright test --config apps/frontend-e2e/playwright.large.config.ts`; it uses its own in-memory database seeded in large mode. Run browser suites sequentially because each owns ports 3000/4200.
 
 Contract tests cover malformed requests, pricing modes, safe money arithmetic, snapshot totals, error details, status rules, and event payloads. Both app test targets import the contracts alias: Angular's Vitest builder verifies the browser consumer, and backend Vitest verifies request/recovery payload serialization. Backend/contracts test targets fail on empty suites. Additional feature tests belong with their implementation tasks.
 
@@ -115,4 +132,4 @@ Exact direct dependency versions live in `package.json`; `pnpm-lock.yaml` pins t
 
 The T12 production frontend initial bundle totals **560.37 kB raw / 141.38 kB estimated transfer**, with lazy feature routes and connection dialog. This build succeeds with a **10.37 kB warning** over the existing 550 kB warning threshold; the 600 kB error limit is unchanged. See [T12 verification](docs/tasks/t12-implement-review-confirmation-and-recovery-ui.md#verification). The earlier T09 baseline was **520.72 kB raw / 132.31 kB estimated transfer**. Angular enforces initial bundle warning/error limits of **550/600 kB** and per-component stylesheet limits of **4/8 kB**. [T09 verification](docs/tasks/t09-implement-angular-shell-and-client-adapters.md#production-bundle-investigation) records the baseline, removal of unused Zod exports/locales, and the change from T01’s placeholder budgets.
 
-See [T01 verification](docs/tasks/t01-scaffold-nx-workspace-and-quality-commands.md#verification) for compatibility sources, actual checks, and native-driver results. [Architecture and backlog](docs/README.md) describe the remaining work. Docker startup becomes available in T14.
+See [T01 verification](docs/tasks/t01-scaffold-nx-workspace-and-quality-commands.md#verification) for compatibility sources, actual checks, and native-driver results. [Architecture and backlog](docs/README.md) describe the remaining work. [T14 verification](docs/tasks/t14-implement-two-service-docker-deployment.md#verification) records deployment checks.
