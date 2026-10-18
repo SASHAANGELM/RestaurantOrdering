@@ -1,0 +1,13 @@
+{
+  "name": "frontend-e2e",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/frontend-e2e/src",
+  "tags": ["scope:e2e", "type:e2e"],
+  "implicitDependencies": ["frontend", "backend"],
+  "targets": {
+    "e2e": { "cache": false },
+    "lint": { "executor": "nx:run-commands", "options": { "command": "eslint apps/frontend-e2e --max-warnings=0" } },
+    "typecheck": { "executor": "nx:run-commands", "options": { "command": "tsc -p apps/frontend-e2e/tsconfig.json --noEmit" } }
+  }
+}

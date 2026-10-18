@@ -1,0 +1,40 @@
+{
+  "name": "backend",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/backend/src",
+  "tags": ["scope:backend", "type:app"],
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{workspaceRoot}/dist/apps/backend"],
+      "defaultConfiguration": "production",
+      "options": {
+        "platform": "node",
+        "target": "node24",
+        "format": ["cjs"],
+        "outputPath": "dist/apps/backend",
+        "main": "apps/backend/src/main.ts",
+        "tsConfig": "apps/backend/tsconfig.app.json",
+        "bundle": true,
+        "generatePackageJson": false,
+        "thirdParty": false,
+        "esbuildOptions": { "sourcemap": true }
+      },
+      "configurations": { "production": {}, "development": {} }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "continuous": true,
+      "options": { "buildTarget": "backend:build:development", "watch": true, "inspect": false }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "eslint apps/backend --max-warnings=0" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "tsc -p apps/backend/tsconfig.app.json --noEmit && tsc -p apps/backend/tsconfig.spec.json --noEmit" }
+    }
+  }
+}

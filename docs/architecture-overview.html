@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Restaurant Ordering architecture</title>
+<style>
+
+*{box-sizing:border-box}body{margin:0;background:transparent;color:var(--foreground,#192433);font:14px/1.5 var(--font-sans,system-ui,sans-serif)}button{font:inherit}nav{display:flex;gap:8px;margin:0 0 18px}button{border:1px solid var(--border,#d6e0ed);border-radius:8px;padding:8px 14px;background:transparent;color:var(--muted-foreground,#526172);cursor:pointer}button[aria-pressed="true"]{color:var(--foreground,#192433);background:var(--card,#f4f7fb);border-color:var(--accent,#255ad7)}button:focus-visible{outline:2px solid var(--accent,#255ad7);outline-offset:3px}
+p{margin:8px 0 0}.muted,.arrow{color:var(--muted-foreground,#526172)}.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-foreground,#526172)}h2{font-size:18px;margin:4px 0 6px;line-height:1.3}h3{font-size:15px;margin:0 0 4px}.browser{text-align:center;padding:16px;border:1px solid var(--border,#d6e0ed);border-radius:var(--radius,12px)}.arrow{text-align:center;padding:10px 0;font-size:12px}.services{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{padding:18px;background:var(--card,#f4f7fb);border:1px solid var(--border,#d6e0ed);border-radius:var(--radius,12px);min-width:0}.tag{color:var(--accent,#255ad7);font-size:11px;font-weight:650}.route{font:12px var(--font-mono,ui-monospace,monospace);overflow-wrap:anywhere}.storage{margin-top:14px;border:1px dashed var(--border,#d6e0ed);border-radius:var(--radius,12px);padding:16px;display:flex;justify-content:space-between;gap:16px}.note{margin-top:16px;font-size:12px;color:var(--muted-foreground,#526172)}.steps{display:grid;gap:10px;counter-reset:step}.step{display:grid;grid-template-columns:26px 1fr;gap:12px;padding:16px;background:var(--card,#f4f7fb);border:1px solid var(--border,#d6e0ed);border-radius:var(--radius,12px)}.step:before{counter-increment:step;content:counter(step);color:var(--accent,#255ad7);font-weight:700}.step p{font-size:13px;margin-top:3px}.guard{margin-top:14px;padding:16px;border:1px dashed var(--border,#d6e0ed);border-radius:var(--radius,12px);font-size:13px}[hidden]{display:none!important}
+@media(max-width:480px){.services{grid-template-columns:1fr}.storage{display:block}.storage .route{margin-top:8px}.card{padding:16px}h2{font-size:17px}}
+</style></head><body>
+<nav aria-label="Architecture views"><button type="button" aria-pressed="true" aria-controls="deployment" id="deploy-button">Deployment</button><button type="button" aria-pressed="false" aria-controls="checkout" id="checkout-button">Checkout safety</button></nav>
+<section id="deployment" aria-label="Deployment architecture">
+<div class="browser"><span class="eyebrow">Browser</span><h2>Angular · Material / CDK · NgRx</h2><div class="muted">Menu & cart · Setup · All orders</div></div>
+<div class="arrow">↓ One origin · HTTP + Socket.IO ↑</div>
+<div class="services">
+<article class="card"><span class="tag">SERVICE 01 · frontend</span><h2>Nginx</h2><p>Serves the Angular build and forwards API and realtime traffic.</p><p class="route">/api/ → backend:3000<br>/socket.io/ → backend:3000</p><p class="muted">Published port: 8080</p></article>
+<article class="card"><span class="tag">SERVICE 02 · backend</span><h2>Express + TypeScript</h2><p>Menu rules, reviewed checkout, orders, and Socket.IO notifications.</p><p class="route">Drizzle → SQLite<br>Internal port: 3000</p><p class="muted">One backend replica</p></article>
+</div>
+<div class="storage"><div><h3>Persistent SQLite storage</h3><span class="muted">Mounted only by the backend. No database service.</span></div><div class="route">restaurant-data<br>/data/restaurant.sqlite</div></div>
+<p class="note">One Nx repository · two Compose services · shared runtime contracts<br>Confirmed: demo access without sign-in · USD cents · manual order statuses</p>
+</section>
+<section id="checkout" aria-label="Checkout safety" hidden>
+<div class="steps">
+<article class="step"><div><h3>Review current server data</h3><p>Validate availability, fixed/open prices, quantity, and discount. Persist a five-minute quote with exact totals and the menu revision.</p></div></article>
+<article class="step"><div><h3>User explicitly confirms</h3><p>Display the reviewed result. Save one idempotency key and the exact quote payload before sending the request.</p></div></article>
+<article class="step"><div><h3>Recheck and commit in SQLite</h3><p>Reject a stale quote. Otherwise, create the order and lines atomically; unique key and quote constraints prevent duplicate effects.</p></div></article>
+<article class="step"><div><h3>Recover the same result</h3><p>A dropped response reuses the same key. Socket.IO announces committed changes; reconnect snapshots and revision checks repair missed events.</p></div></article>
+</div>
+<div class="guard"><strong>Menu changed after review?</strong> Return to review and require a new confirmation.<br><strong>Response lost after commit?</strong> Recover the existing order; retain the pending attempt.</div>
+<p class="note">Normal live updates target &lt;1 second at demo load. Missed events reconcile within a 15-second visible-tab sync interval plus network time.</p>
+</section>
+<script>
+(function(){
+const deploy=document.getElementById('deploy-button'),checkout=document.getElementById('checkout-button');
+function show(which){const isDeploy=which==='deployment';document.getElementById('deployment').hidden=!isDeploy;document.getElementById('checkout').hidden=isDeploy;deploy.setAttribute('aria-pressed',String(isDeploy));checkout.setAttribute('aria-pressed',String(!isDeploy));}
+deploy.addEventListener('click',()=>show('deployment'));checkout.addEventListener('click',()=>show('checkout'));
+if(location.hash==='#checkout')show('checkout');
+console.log(JSON.stringify({page:'architecture-overview',horizontalOverflow:document.documentElement.scrollWidth>document.documentElement.clientWidth,views:2}));
+})();
+</script></body></html>

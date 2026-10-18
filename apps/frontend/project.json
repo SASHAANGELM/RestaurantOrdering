@@ -1,0 +1,57 @@
+{
+  "name": "frontend",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/frontend/src",
+  "tags": ["scope:frontend", "type:app"],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": ["{workspaceRoot}/dist/apps/frontend"],
+      "defaultConfiguration": "production",
+      "options": {
+        "outputPath": "dist/apps/frontend",
+        "browser": "apps/frontend/src/main.ts",
+        "index": "apps/frontend/src/index.html",
+        "tsConfig": "apps/frontend/tsconfig.app.json",
+        "styles": ["apps/frontend/src/styles.scss"]
+      },
+      "configurations": {
+        "production": {
+          "outputHashing": "all",
+          "budgets": [
+            { "type": "initial", "maximumWarning": "350kB", "maximumError": "500kB" },
+            { "type": "anyComponentStyle", "maximumWarning": "4kB", "maximumError": "8kB" }
+          ]
+        },
+        "development": { "optimization": false, "extractLicenses": false, "sourceMap": true }
+      }
+    },
+    "serve": {
+      "executor": "@angular/build:dev-server",
+      "continuous": true,
+      "options": {
+        "buildTarget": "frontend:build:development",
+        "host": "127.0.0.1",
+        "port": 4200,
+        "proxyConfig": "apps/frontend/proxy.conf.json"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "eslint apps/frontend --max-warnings=0" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "ngc -p apps/frontend/tsconfig.app.json --noEmit && ngc -p apps/frontend/tsconfig.spec.json --noEmit" }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "node tools/test-frontend.cjs" }
+    },
+    "test-angular": {
+      "executor": "@angular/build:unit-test",
+      "options": { "buildTarget": "frontend:build:development", "tsConfig": "apps/frontend/tsconfig.spec.json", "runner": "vitest", "watch": false }
+    }
+  }
+}
