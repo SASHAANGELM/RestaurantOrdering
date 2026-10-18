@@ -1,6 +1,6 @@
 # HTTP, checkout, and realtime contracts
 
-Runtime schemas, inferred DTOs, money helpers, and event maps are implemented in `libs/contracts` (T02). T04 implements the health endpoints and common HTTP validation/error boundary. Domain endpoints and the Socket.IO server below remain target behavior for later tasks; the backend remains authoritative.
+Runtime schemas, inferred DTOs, money helpers, and event maps are implemented in `libs/contracts` (T02). T04 implements the health endpoints and common HTTP validation/error boundary. T05 implements the menu/Setup endpoints below; sync, checkout, orders, and the Socket.IO server remain target behavior for later tasks. The backend remains authoritative.
 
 ## 1. Common rules
 
@@ -72,7 +72,7 @@ Both health endpoints disable caching. Liveness returns `{ status: 'live' }` wit
 | `GET /api/menu/categories` | Active categories and `menuRevision`. |
 | `GET /api/menu/items?categoryId=&search=&page=&pageSize=` | Active categories' nonarchived items, including unavailable items marked visibly; `{ items, total, page, pageSize, menuRevision }`. |
 | `POST /api/menu/resolve` | Resolve up to 100 specific cart item IDs independent of visible page; return current values or unavailable/archived/missing flags and `menuRevision`. Read-only, no mutation. |
-| `GET /api/setup/categories` | Configuration category list with entity revisions. |
+| `GET /api/setup/categories?includeArchived=` | Configuration category list with entity revisions; hide archived categories by default. |
 | `GET /api/setup/items?...` | Paginated configuration view including unavailable items; hide archived records by default. |
 | `POST /api/setup/categories` | Create a category from name/sort order; 201. |
 | `PATCH /api/setup/categories/:id` | Edit or archive with `{ expectedRevision, ...changes }`. |
@@ -88,6 +88,8 @@ Both health endpoints disable caching. Liveness returns `{ status: 'live' }` wit
 All menu configuration writes increment the changed entity revision and the global menu revision in the same transaction. Failed/no-op writes do not advance revisions. Concurrent Setup edits return `409 REVISION_CONFLICT`; retain the user's form and offer reload/reapply. Reject items assigned to archived categories. Category archival immediately makes its children unorderable without rewriting historical orders.
 
 Read each list/snapshot and its associated stream revision in one short database read transaction. This prevents a revision from describing newer state than the returned data. Cross-endpoint category/item snapshots may differ; if revisions differ, re-fetch to converge rather than accepting an older page over a newer revision.
+
+T05 implements item sorting by name/ID and category sorting by sort order/ID. Item search is a literal name substring using SQLite's built-in ASCII case folding; `%` and `_` are ordinary characters. Item pagination defaults to page 1 / 50 and caps page size at 100; pages beyond the result set return an empty list. Category responses retain the unpaged shared contract. Setup item lists include children of archived categories for management; `includeArchived=true` additionally includes individually archived items. Public Menu item lists exclude both archived items and archived categories' children but include unavailable items. Resolution preserves requested ID order with states missing, archived, category-archived, unavailable, or available (in that precedence). The transaction-scoped joined eligibility read is shared for future checkout services. See [T05 verification](t05-verification.md).
 
 ## 3. Review and confirmation protocol
 

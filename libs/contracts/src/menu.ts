@@ -59,9 +59,10 @@ export const menuItemsQuerySchema = z.strictObject({
   categoryId: idSchema.optional(),
   search: z.string().trim().max(120).optional()
 });
-export const setupItemsQuerySchema = menuItemsQuerySchema.extend({
+export const setupCategoriesQuerySchema = z.strictObject({
   includeArchived: z.union([z.boolean(), z.enum(['true', 'false']).transform((value) => value === 'true')]).default(false)
 });
+export const setupItemsQuerySchema = menuItemsQuerySchema.extend(setupCategoriesQuerySchema.shape);
 export const categoriesResponseSchema = z.strictObject({ categories: z.array(categorySchema), menuRevision: revisionSchema });
 export const itemsResponseSchema = z.strictObject({
   items: z.array(menuItemSchema).max(MAX_PAGE_SIZE), ...paginationShape, menuRevision: revisionSchema

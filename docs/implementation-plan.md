@@ -1,6 +1,6 @@
 # Implementation plan
 
-Build the agreed architecture in small runnable increments. The task checklist is in [tasks.md](tasks.md); API and recovery details are in [contracts.md](contracts.md). T01–T04 are complete ([workspace verification](t01-verification.md), [contracts verification](t02-verification.md), [persistence verification](t03-verification.md), [HTTP lifecycle verification](t04-verification.md)); the remaining tasks are unimplemented.
+Build the agreed architecture in small runnable increments. The task checklist is in [tasks.md](tasks.md); API and recovery details are in [contracts.md](contracts.md). T01–T05 are complete ([workspace verification](t01-verification.md), [contracts verification](t02-verification.md), [persistence verification](t03-verification.md), [HTTP lifecycle verification](t04-verification.md), [menu API verification](t05-verification.md)); the remaining tasks are unimplemented.
 
 ## 1. Milestones and sequencing
 

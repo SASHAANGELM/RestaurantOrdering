@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import express, { type Express } from 'express';
 import type { DatabaseConnection } from './db/connection';
 import { errorHandler, HttpError, unavailableError, type ErrorReporter } from './middleware/errors';
+import { createMenuRouter } from './modules/menu/router';
 
 export interface AppOptions {
   connection: DatabaseConnection;
@@ -40,6 +41,7 @@ export function createApp(options: AppOptions) {
   app.use((_request, _response, next) => { next(options.isShuttingDown?.() ? unavailableError() : undefined); });
   app.use(express.json({ limit: options.jsonBodyLimitBytes, strict: true, inflate: false }));
   app.get('/api', (_request, response) => { response.json({ name: 'Restaurant Ordering API' }); });
+  app.use('/api', createMenuRouter(options.connection));
   options.registerRoutes?.(app);
   app.use((_request, response) => {
     throw new HttpError({

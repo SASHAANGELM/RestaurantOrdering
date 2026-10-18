@@ -1,6 +1,6 @@
 # Restaurant Ordering
 
-Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T04 are implemented.** The frontend currently serves a workspace placeholder; the backend initializes SQLite persistence and provides validated configuration, health checks, common errors, and graceful shutdown. Ordering workflows, realtime behavior, and Docker deployment are later [tasks](docs/tasks.md).
+Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T05 are implemented.** The frontend currently serves a workspace placeholder; the backend provides SQLite persistence, validated configuration, health checks, common errors, graceful shutdown, and menu configuration/query APIs. Checkout, ordering, realtime behavior, and Docker deployment are later [tasks](docs/tasks.md).
 
 ## Local development
 
@@ -20,7 +20,7 @@ Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api>
 | `pnpm dev` | Watch and serve frontend and backend together. |
 | `pnpm lint` | ESLint, Angular template accessibility, and Nx import boundaries. |
 | `pnpm typecheck` | Strict TypeScript for all four projects, plus Angular template checking. |
-| `pnpm test` | Contract/money boundaries, browser/server contract consumers, isolated persistence and HTTP/lifecycle tests. |
+| `pnpm test` | Contract/money boundaries, browser/server contract consumers, isolated persistence, menu API/service, and HTTP/lifecycle tests. |
 | `pnpm build` | Production frontend/backend builds and contracts declarations in `dist/`. |
 | `pnpm check` | Lint, typecheck, test, and build sequentially. |
 | `pnpm e2e` | Chromium smoke test using its own frontend/backend servers. Stop `pnpm dev` first. |
@@ -52,7 +52,15 @@ DATABASE_PATH=data/large.sqlite SEED_MODE=large pnpm dev
 
 Use a new path for a fresh fixture. Deleting a local database and its SQLite sidecars permanently removes that file's orders and configuration; stop the backend before any intentional reset. `data/`, SQLite files, and sidecars are ignored by Git. Tests create and remove their own OS temporary files.
 
-The persistence helpers include expiry cleanup that retains quotes referenced by orders. Quote snapshot validation, eligibility checks, HTTP APIs, status rules, and post-commit notifications are implemented in later tasks; the schema supplies their constraints and storage. See [T03 verification](docs/t03-verification.md) for demonstrated persistence behavior.
+The persistence helpers include expiry cleanup that retains quotes referenced by orders. T05 implements menu HTTP APIs and shared item/category eligibility reads. Quote preparation/confirmation, order APIs, status rules, and realtime broadcasts remain later tasks; the schema supplies their constraints and storage. See [T03 verification](docs/t03-verification.md) for demonstrated persistence behavior.
+
+## Menu configuration and queries
+
+Use `GET /api/menu/categories`, `GET /api/menu/items`, and `POST /api/menu/resolve` for browsing and cart refresh. Item queries support `categoryId`, literal name `search`, `page`, and `pageSize` (default 50, maximum 100). Resolution accepts `{ "itemIds": ["<UUID>"] }` for up to 100 distinct items, including off-page, unavailable, archived, and missing entries.
+
+Setup exposes category/item list and creation at `/api/setup/categories` and `/api/setup/items`; edit/archive with `PATCH /api/setup/categories/:id` or `/api/setup/items/:id`, including `expectedRevision`. Lists hide archived entities by default; `includeArchived=true` includes them. Setup retains items under archived categories for management, while Menu excludes them from ordering eligibility. An archive sends `archived: true`; unarchiving is outside scope.
+
+Writes persist entity/menu revisions atomically and reject stale edits with `409 REVISION_CONFLICT`. No-op writes preserve revisions. Fixed pricing writes include `pricingMode: "fixed"` and integer `priceMinor`; open pricing writes send `pricingMode: "open"` with no price. See [contracts](docs/contracts.md#2-http-surface) for request details and [T05 verification](docs/t05-verification.md) for demonstrated behavior. Checkout and realtime delivery are not yet implemented.
 
 ## Backend lifecycle and health
 

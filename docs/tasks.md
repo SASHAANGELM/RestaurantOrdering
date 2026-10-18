@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01–T04 complete; T05–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T05 complete; T06–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -59,11 +59,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
 ## Backend workflows
 
-- [ ] **T05 — Implement menu configuration and query APIs**
+- [x] **T05 — Implement menu configuration and query APIs**
 
   Create/edit/archive categories and items; manage fixed/open pricing and availability. Add expected-revision conflict checks, transactional menu revision increments, bounded query/search/category pagination, and cart item resolution independent of the current page. Archived categories make their children unorderable.
 
   Acceptance: valid mutations persist; invalid category/pricing requests and stale edits are rejected; archive semantics are consistent across menu and checkout reads. Snapshot rows and stream revisions are read consistently. Small and large fixtures return bounded deterministic pages. Service results expose post-commit notification data for T08.
+
+  Completed 2026-10-18. See [verification results](t05-verification.md) and [menu configuration/query behavior](contracts.md#2-http-surface). Added 57 isolated real-file menu API/service tests covering mutations, conflicts, archive eligibility, rollback, concurrent snapshot reads, post-commit notification data, and bounded small/5,000-item fixture pages. Uncached `pnpm check` passed, including both app unit-test targets and production builds. Shared eligibility reads are ready for T06/T07; checkout endpoints and Socket.IO remain later tasks.
 
 - [ ] **T06 — Implement authoritative checkout quotes**
 
