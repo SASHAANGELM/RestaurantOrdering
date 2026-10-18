@@ -1,6 +1,6 @@
 # Restaurant Ordering
 
-Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T06 are implemented.** The frontend currently serves a workspace placeholder; the backend provides SQLite persistence, validated configuration, health checks, common errors, graceful shutdown, menu configuration/query APIs, and authoritative checkout quotes. Order confirmation, ordering, realtime behavior, and Docker deployment are later [tasks](docs/tasks.md).
+Integrated Nx workspace for an Angular frontend, Express backend, framework-neutral contracts library, and Playwright E2E project. **T01–T07 are implemented.** The frontend currently serves a workspace placeholder; the backend provides SQLite persistence, validated configuration, health checks, common errors, graceful shutdown, menu configuration/query APIs, authoritative checkout quotes, idempotent order confirmation/recovery, and manual order statuses. Realtime behavior, frontend workflows, and Docker deployment are later [tasks](docs/tasks.md).
 
 ## Local development
 
@@ -20,7 +20,7 @@ Open <http://127.0.0.1:4200>. The backend listens on <http://127.0.0.1:3000/api>
 | `pnpm dev` | Watch and serve frontend and backend together. |
 | `pnpm lint` | ESLint, Angular template accessibility, and Nx import boundaries. |
 | `pnpm typecheck` | Strict TypeScript for all four projects, plus Angular template checking. |
-| `pnpm test` | Contract/money boundaries, browser/server contract consumers, isolated persistence, menu API/service, and HTTP/lifecycle tests. |
+| `pnpm test` | Contract/money boundaries, browser/server contract consumers, isolated persistence, menu/checkout/order API/service, and HTTP/lifecycle tests. |
 | `pnpm build` | Production frontend/backend builds and contracts declarations in `dist/`. |
 | `pnpm check` | Lint, typecheck, test, and build sequentially. |
 | `pnpm e2e` | Chromium smoke test using its own frontend/backend servers. Stop `pnpm dev` first. |
@@ -52,7 +52,7 @@ DATABASE_PATH=data/large.sqlite SEED_MODE=large pnpm dev
 
 Use a new path for a fresh fixture. Deleting a local database and its SQLite sidecars permanently removes that file's orders and configuration; stop the backend before any intentional reset. `data/`, SQLite files, and sidecars are ignored by Git. Tests create and remove their own OS temporary files.
 
-The persistence helpers include expiry cleanup that retains quotes referenced by orders. T05 implements menu HTTP APIs and shared item/category eligibility reads; T06 implements persisted quote preparation. Quote confirmation, order APIs, status rules, and realtime broadcasts remain later tasks; the schema supplies their constraints and storage. See [T03 verification](docs/t03-verification.md) for demonstrated persistence behavior.
+The persistence helpers include expiry cleanup that retains quotes referenced by orders. T05 implements menu HTTP APIs and shared item/category eligibility reads; T06 implements persisted quote preparation; T07 implements quote confirmation, order APIs, and status rules using the schema's unique key/quote constraints. Realtime broadcasts remain T08. See [T03 verification](docs/t03-verification.md) for demonstrated persistence behavior.
 
 ## Menu configuration and queries
 
@@ -62,7 +62,15 @@ Setup exposes category/item list and creation at `/api/setup/categories` and `/a
 
 Writes persist entity/menu revisions atomically and reject stale edits with `409 REVISION_CONFLICT`. No-op writes preserve revisions. Fixed pricing writes include `pricingMode: "fixed"` and integer `priceMinor`; open pricing writes send `pricingMode: "open"` with no price. See [contracts](docs/contracts.md#2-http-surface) for request details and [T05 verification](docs/t05-verification.md) for demonstrated behavior.
 
-`POST /api/checkout/quotes` accepts cart lines and an integer-cent discount, recalculates prices from the current menu, and returns 201 with a persisted five-minute review snapshot and visible observed-value changes. Invalid carts receive line-specific issues; quoting creates no order or inventory reservation. See [T06 verification](docs/t06-verification.md). Order confirmation and realtime delivery remain later tasks.
+`POST /api/checkout/quotes` accepts cart lines and an integer-cent discount, recalculates prices from the current menu, and returns 201 with a persisted five-minute review snapshot and visible observed-value changes. Invalid carts receive line-specific issues; quoting creates no order or inventory reservation. See [T06 verification](docs/t06-verification.md).
+
+## Orders and recovery
+
+Confirm a reviewed quote with `POST /api/orders`, JSON `{ "quoteId": "<UUID>" }`, and a UUID `Idempotency-Key` header. First creation returns 201; retries of the same key/payload return 200 with the same order and its current status. A different payload with that key returns `409 IDEMPOTENCY_CONFLICT`; another key for an already consumed quote returns `409 QUOTE_USED` with the existing order ID. Any menu revision change or quote expiry requires review again for an uncommitted attempt. Committed attempts remain replayable after expiry, menu edits, and restart.
+
+Recover a committed result using `GET /api/orders/by-request/:idempotencyKey`. A 404 means no committed result was found in that read; an in-flight attempt may still commit, so retain the original key and payload for retries. List orders with `GET /api/orders?status=&page=&pageSize=` (newest first, default 50, maximum 100), and read immutable line/price snapshots with `GET /api/orders/:id`. Order responses include the matching persisted `ordersRevision` and disable caching.
+
+Use `PATCH /api/orders/:id/status` with `{ "status": "preparing", "expectedRevision": 1 }`. The graph is placed → preparing → ready → completed; cancellation is allowed only from placed or preparing. Stale revisions and invalid transitions return 409 without changing state. Current-status requests at the current revision are no-ops. Creation/status changes update the order stream atomically and expose committed notification data for T08. See [T07 verification](docs/t07-verification.md); frontend controls and realtime delivery remain later tasks.
 
 ## Backend lifecycle and health
 

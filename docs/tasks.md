@@ -1,6 +1,6 @@
 # Implementation tasks
 
-All tasks are required for the agreed prototype. Status: **T01–T06 complete; T07–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
+All tasks are required for the agreed prototype. Status: **T01–T07 complete; T08–T16 not started**. Check a task only after its acceptance criteria are demonstrated and `pnpm check` passes, including **frontend and backend unit tests and both production builds** (see [project guidance](../AGENTS.md)). These are local backlog items; no external tracker, recurring jobs, or implementation agents have been created.
 
 | ID | Task | Depends on |
 | --- | --- | --- |
@@ -75,11 +75,13 @@ T09 can follow T04 while server work continues sequentially; T14 can start once 
 
   Completed 2026-10-18. See [verification results](t06-verification.md). Added the transactional quote endpoint and 44 isolated real-file checkout tests covering authoritative snapshots, five-minute expiry metadata, visible differences, line-specific cart issues, pricing switches, safe money boundaries, rollback, and writer serialization. Uncached `pnpm check` passed, including frontend/backend unit tests and both production builds. Order confirmation remains T07.
 
-- [ ] **T07 — Implement idempotent orders and status transitions**
+- [x] **T07 — Implement idempotent orders and status transitions**
 
   Add quote confirmation, key-based recovery, order list/detail, and manual status updates. Use short immediate transactions, canonical request hashes, unique key/quote constraints, immutable line snapshots, and persisted stream revisions. Implement exactly the agreed transition graph.
 
   Acceptance: overlapping same-key requests create one order; the same key with another payload conflicts; another key cannot consume the same quote. Replay succeeds after quote expiry/menu edits and a backend restart. Changed availability between review and commit prevents placement. A failed transaction leaves no order lines/orphaned state. Lost-response recovery returns the original order. Invalid/stale status transitions change nothing; historical prices remain unchanged after Setup edits.
+
+  Completed 2026-10-18. See [verification results](t07-verification.md). Added quote confirmation, key-based replay/recovery, consistent paginated order reads, immutable snapshots, manual status transitions, and committed notification data for T08. Added 88 isolated real-file tests, including independent SQLite writer races, a committed request with a dropped HTTP response, expiry/edit/restart recovery, rollback, and all 25 status pairs. Uncached `pnpm check` passed, including frontend/backend unit tests and both production builds. Realtime delivery and frontend workflows remain later tasks.
 
 - [ ] **T08 — Implement Socket.IO and revision synchronization**
 

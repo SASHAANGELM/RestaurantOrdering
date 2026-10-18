@@ -1,6 +1,6 @@
 # HTTP, checkout, and realtime contracts
 
-Runtime schemas, inferred DTOs, money helpers, and event maps are implemented in `libs/contracts` (T02). T04 implements the health endpoints and common HTTP validation/error boundary. T05 implements the menu/Setup endpoints below; sync, checkout, orders, and the Socket.IO server remain target behavior for later tasks. The backend remains authoritative.
+Runtime schemas, inferred DTOs, money helpers, and event maps are implemented in `libs/contracts` (T02). T04 implements the health endpoints and common HTTP validation/error boundary. T05 implements the menu/Setup endpoints, T06 implements checkout quotes, and T07 implements order confirmation, recovery, reads, and status updates below. Sync and the Socket.IO server remain T08. The backend remains authoritative.
 
 ## 1. Common rules
 
@@ -112,8 +112,9 @@ BEGIN IMMEDIATE
     matching canonical request hash -> return that order (replay)
     different hash -> 409 IDEMPOTENCY_CONFLICT
   load quote
-  reject missing/expired quote
+  reject missing quote
   reject quote already used by another key (409 QUOTE_USED, existing order ID)
+  reject expired unused quote
   compare quote menu revision to current persisted menu revision
   recheck item/category eligibility, pricing mode, and authoritative totals
   if changed -> 409 MENU_CHANGED; do not create anything
@@ -126,6 +127,8 @@ return committed order
 ```
 
 Hash a canonical versioned request representation containing `quoteId`; no client-supplied totals enter the commit endpoint. Check replay **before** quote expiry/menu checks so a committed order remains recoverable later. Unique violations from overlapping requests must resolve to the existing committed order or a documented conflict. A crash after commit but before HTTP response still leaves the key/order mapping recoverable. A crash before commit leaves no partial order. Retain keys as long as orders exist.
+
+T07 implements a SHA-256 hash of `JSON.stringify({ version: 1, quoteId })` after strict request validation. An immediate transaction acquires the SQLite writer lock before looking up the key, serializing independent writers so the later request observes the committed order or documented conflict. Lock timeouts use the common retryable 503 response. Key/hash fields never appear in order DTOs. Replays and recovery return the order's current status with its original immutable lines. A consumed quote returns `QUOTE_USED` even after expiry, allowing another retained attempt key to resolve to that order. Order list/count, detail/lines, recovery, and their persisted stream revisions share short read transactions. Services expose notification data only after commit; replays and status no-ops return no notification. See [T07 verification](t07-verification.md).
 
 The uniqueness guarantee applies to one checkout intent/key and one quote. Separate independently reviewed quotes may legitimately create separate orders with identical contents. There is no heuristic deduplication of equal carts, and order submission does not reserve or consume a stock count.
 

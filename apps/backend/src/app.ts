@@ -4,6 +4,7 @@ import type { DatabaseConnection } from './db/connection';
 import { errorHandler, HttpError, unavailableError, type ErrorReporter } from './middleware/errors';
 import { createCheckoutRouter } from './modules/checkout/router';
 import { createMenuRouter } from './modules/menu/router';
+import { createOrdersRouter } from './modules/orders/router';
 
 export interface AppOptions {
   connection: DatabaseConnection;
@@ -44,6 +45,7 @@ export function createApp(options: AppOptions) {
   app.get('/api', (_request, response) => { response.json({ name: 'Restaurant Ordering API' }); });
   app.use('/api', createMenuRouter(options.connection));
   app.use('/api', createCheckoutRouter(options.connection));
+  app.use('/api', createOrdersRouter(options.connection));
   options.registerRoutes?.(app);
   app.use((_request, response) => {
     throw new HttpError({
