@@ -23,7 +23,7 @@ test('lazy routes keep one socket, move heading focus, and support a keyboard-ac
   await page.goto('/');
   const connection = page.getByRole('button', { name: 'Connection details', exact: true });
   await expect(connection).toContainText('Connected');
-  for (const name of ['Setup', 'Orders', 'Menu', 'Orders', 'Setup', 'Menu']) {
+  for (const name of ['Settings', 'Orders', 'Menu', 'Orders', 'Settings', 'Menu']) {
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact: true }).click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
     await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
@@ -43,9 +43,9 @@ test('lazy routes keep one socket, move heading focus, and support a keyboard-ac
   await expect(dialog).not.toBeVisible();
   await expect(connection).toBeFocused();
   await page.goto('/setup');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Setup');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Setup');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
   expect(errors).toEqual([]);
 });
 
@@ -89,7 +89,7 @@ test('order deep links read snapshots and route parameter changes recover from i
   await page.goto(`/orders/${result.order.id}`);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Order details');
   await expect(page.getByText(item.name, { exact: true })).toBeVisible();
-  await expect(page.getByText('Total: $15.00', { exact: true })).toBeVisible();
+  await expect(page.locator('dl')).toContainText('$15.00');
   await page.reload();
   await expect(page.getByText(item.name, { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Back to orders' }).click();

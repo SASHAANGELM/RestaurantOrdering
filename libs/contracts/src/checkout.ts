@@ -4,7 +4,10 @@ import {
   nameSchema, pricingModeSchema, quantitySchema, revisionSchema, timestampSchema, unitPriceMinorSchema
 } from './common';
 
+export const kitchenCommentSchema = z.string().max(500);
+
 export const cartLineSchema = z.strictObject({
+  comment: kitchenCommentSchema.optional(),
   itemId: idSchema,
   quantity: quantitySchema,
   openPriceMinor: unitPriceMinorSchema.optional(),
@@ -19,6 +22,7 @@ export const cartIntentSchema = z.strictObject({
 export const createQuoteSchema = cartIntentSchema;
 
 export const snapshotLineSchema = z.strictObject({
+  comment: kitchenCommentSchema.optional(),
   itemId: idSchema,
   categoryId: idSchema,
   itemName: nameSchema,

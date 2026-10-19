@@ -95,7 +95,7 @@ Routes: `/menu` (default), `/setup`, `/orders`, and `/orders/:id`. Lazy-load eac
 
 | State owner | Contents and lifetime |
 | --- | --- |
-| MenuStore | Current search/category/page, bounded item entities, categories, menu revision, loading/errors. |
+| MenuStore | Complete active catalog snapshot, local search/category/page, bounded rendered items, menu revision and loading/errors. |
 | CartStore / CheckoutStore | CartStore owns line intent, quantity, observed item version/price, open price, and discount; CheckoutStore owns quote review and pending confirmation recovery. Both root-scoped. |
 | SetupStore | Current page of configuration data, form submission state, version-conflict messages. Route-scoped. |
 | OrdersStore | Current page/filter, visible order versions, order-stream revision, selected order, loading/errors. Route-scoped. |
@@ -105,9 +105,9 @@ Keep editing form state local; stores own server data and workflows. Cart totals
 
 The cart persists validated, versioned JSON in **sessionStorage per tab**, including an unresolved checkout key/quote. This supports reload and retry without adding cross-tab cart coordination. Invalid storage is ignored with a recoverable notice. Storage errors must not crash the UI. Distinct tabs have independent carts; the same reviewed quote still cannot create two orders. Closing a tab ends that cart's persistence.
 
-For large menus, use server-side category filtering, debounced search (~250 ms), and pagination (default 50, maximum 100 items). Do not fetch/render the entire catalogue. Cancel superseded searches and ignore outdated responses. Use stable item IDs for rendering, fixed-size image placeholders if images are later added, and skeletons matching the final layout. No images/uploads are required initially. CDK virtual scrolling is deferred unless profiling shows bounded pages are insufficient.
+Menu obtains a complete active catalog from one transactional `/api/menu/catalog` read. Search, category filtering and pagination use the local snapshot, without HTTP calls. Only the current page (default 50, maximum 100 cards) renders. Revision invalidation and explicit refresh fetch a complete replacement, retain local filters and reject stale responses. Settings and Orders retain their existing server pagination. This deliberately trades a larger initial menu transfer for instant local browsing in a restaurant-sized catalog.
 
-Menu events refresh the visible page and validate cart items even if they are outside that page. Keep user quantities/open-price input; display changed price, unavailable, or archived states. Refreshing data must not clear the cart, steal focus, or silently submit it. A disconnected state allows browsing cached data and editing the cart; checkout requires a fresh successful server review.
+Menu events refresh the full catalog snapshot and validate cart items even if they are outside that page. Keep user quantities/open-price input; display changed price, unavailable, or archived states. Refreshing data must not clear the cart, steal focus, or silently submit it. A disconnected state allows browsing cached data and editing the cart; checkout requires a fresh successful backend quote check. Confirm order chains that check and idempotent placement from one user action.
 
 ## 5. Data model
 
@@ -120,9 +120,11 @@ All IDs are opaque UUIDs. Timestamps are UTC. Prices, discounts, and totals are 
 | `menu_items` | `id`, `category_id` FK, `name`, optional description, `pricing_mode` (`fixed`/`open`), nullable `price_minor`, `available`, `archived_at`, `revision`, timestamps. |
 | `checkout_quotes` | `id`, `menu_revision`, validated immutable snapshot JSON, `currency`, `created_at`, `expires_at`. Server-generated only. |
 | `orders` | `id`, `quote_id` UNIQUE FK, `idempotency_key` UNIQUE NOT NULL, `request_hash`, `status`, `subtotal_minor`, `discount_minor`, `total_minor`, `currency`, `revision`, timestamps. |
-| `order_lines` | `id`, `order_id` FK, per-order unique `line_index`, `item_id`/`category_id` FKs, item/category name snapshots, `item_revision`, pricing mode snapshot, `unit_price_minor`, `quantity`, `line_total_minor`. |
+| `order_lines` | `id`, `order_id` FK, per-order unique `line_index`, `item_id`/`category_id` FKs, item/category name snapshots, `item_revision`, image URL snapshot, kitchen comment, pricing mode snapshot, `unit_price_minor`, `quantity`, `line_total_minor`. |
 
 Foreign keys enabled on every connection; WAL mode and a finite busy timeout (initially 5 seconds). Use CHECK constraints for enums, booleans, nonnegative money, positive quantities, and `total = subtotal - discount`. Fixed items require `price_minor`; open items require it to be null. The service also validates all constraints and safe-integer arithmetic. Index item category/archive fields, order creation timestamp plus ID, order status, and quote expiry. Unique indexes on quote/key enforce checkout safety independently of UI state.
+
+Order status events persist the order ID, revision, status and change timestamp, with a unique order/revision pair. Creation and transitions write history atomically with order state and stream revisions. Legacy migration records placement and the latest known status without inventing intermediate timestamps.
 
 Archive categories/items instead of hard deletion. An archived category makes all its items unorderable; unarchiving is outside initial scope. Historical orders retain their names/prices even after menu edits. No inventory decrement: availability is a boolean controlled in Setup. Quote creation does not reserve an item or freeze future availability.
 

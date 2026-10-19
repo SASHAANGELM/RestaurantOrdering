@@ -45,19 +45,21 @@ export const CartStore = signalStore(
   })),
   withMethods((store, storage = inject(CART_STORAGE)) => ({
     clear() { if (!store.checkoutLocked()) patchState(store, { ...emptyCart(), intentRevision: store.intentRevision() + 1 }); },
-    updateLine(id: string, quantityText: string, priceText: string): string | null {
+    updateLine(id: string, quantityText: string, priceText: string, comment?: string): string | null {
       if (store.checkoutLocked()) return 'Resolve the pending checkout before changing your cart.';
       const line = store.lines().find((entry) => entry.id === id);
       if (!line) return 'This cart line was removed. Close and reopen this dialog.';
+      const note = (comment ?? line.comment ?? '').trim();
+      if (note.length > 500) return 'Keep kitchen comments within 500 characters.';
       let quantity: number; let price: number;
       try { quantity = quantityValue(quantityText); } catch { return 'Enter a whole quantity from 1 to 99.'; }
       try { price = line.item.pricingMode === 'fixed' ? line.item.priceMinor : parseUnitPriceMinor(priceText); }
       catch { return 'Enter a price from 0.00 to 10,000.00 with at most two decimal places.'; }
-      const match = store.lines().find((other) => other.id !== id && other.item.id === line.item.id && other.item.pricingMode === line.item.pricingMode && !entryInputIssue(other) && entryPrice(other) === price);
+      const match = store.lines().find((other) => other.id !== id && other.item.id === line.item.id && (other.comment ?? '') === note && other.item.pricingMode === line.item.pricingMode && !entryInputIssue(other) && entryPrice(other) === price);
       if (match && quantity + quantityValue(match.quantityText) > 99) return 'A cart line can contain at most 99 items. Your existing quantity is retained.';
       patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().flatMap((entry) => {
         if (match && entry.id === id) return [];
-        if (entry.id === (match?.id ?? id)) return [{ ...entry, quantityText: String(quantity + (match ? quantityValue(match.quantityText) : 0)), priceText: moneyText(price) }];
+        if (entry.id === (match?.id ?? id)) return [{ ...entry, comment: note, quantityText: String(quantity + (match ? quantityValue(match.quantityText) : 0)), priceText: moneyText(price) }];
         return [entry];
       }) });
       return null;
@@ -72,15 +74,17 @@ export const CartStore = signalStore(
         return true;
       } catch { return false; }
     },
-    add(item: MenuItem, quantityText: string, priceText = ''): string | null {
+    add(item: MenuItem, quantityText: string, priceText = '', comment = ''): string | null {
       if (store.checkoutLocked()) return 'Resolve the pending checkout before changing your cart.';
+      const note = comment.trim();
+      if (note.length > 500) return 'Keep kitchen comments within 500 characters.';
       if (!item.available || item.archivedAt) return 'This item is unavailable. Your cart is retained.';
       let quantity: number;
       let price: number;
       try { quantity = quantityValue(quantityText); } catch { return 'Enter a whole quantity from 1 to 99.'; }
       try { price = item.pricingMode === 'fixed' ? item.priceMinor : parseUnitPriceMinor(priceText); }
       catch { return 'Enter a price from 0.00 to 10,000.00 with at most two decimal places.'; }
-      const match = store.lines().find((line) => line.item.id === item.id && line.item.pricingMode === item.pricingMode &&
+      const match = store.lines().find((line) => line.item.id === item.id && (line.comment ?? '') === note && line.item.pricingMode === item.pricingMode &&
         !entryInputIssue(line) && entryPrice(line) === price);
       if (match) {
         const combined = quantityValue(match.quantityText) + quantity;
@@ -88,13 +92,13 @@ export const CartStore = signalStore(
         patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().map((line) => line.id === match.id ? { ...line, quantityText: String(combined) } : line) });
       } else {
         if (store.lines().length >= MAX_CART_LINES) return 'The cart can contain at most 100 lines. Remove a line first.';
-        patchState(store, { intentRevision: store.intentRevision() + 1, lines: [...store.lines(), newEntry(item, String(quantity), moneyText(price))] });
+        patchState(store, { intentRevision: store.intentRevision() + 1, lines: [...store.lines(), newEntry(item, String(quantity), moneyText(price), note)] });
       }
       return null;
     },
-    edit(id: string, field: 'quantityText' | 'priceText', value: string) {
+    edit(id: string, field: 'quantityText' | 'priceText' | 'comment', value: string) {
       if (store.checkoutLocked()) return;
-      patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().map((line) => line.id === id ? { ...line, [field]: value.slice(0, 32) } : line) });
+      patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().map((line) => line.id === id ? { ...line, [field]: value.slice(0, field === 'comment' ? 500 : 32) } : line) });
     },
     discount(value: string) { if (!store.checkoutLocked()) patchState(store, { intentRevision: store.intentRevision() + 1, discountText: value.slice(0, 32) }); },
     remove(id: string) { if (!store.checkoutLocked()) patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().filter((line) => line.id !== id) }); }

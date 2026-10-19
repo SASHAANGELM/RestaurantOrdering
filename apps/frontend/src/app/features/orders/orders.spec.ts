@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { createEnvironmentInjector, EnvironmentInjector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type OrderResponse, type OrderStatus, type OrdersResponse } from '@restaurant-ordering/contracts';
 import { RealtimeSync, SOCKET_FACTORY } from '../../core/realtime-sync';
@@ -31,14 +32,18 @@ function page(status: OrderStatus | null, revision: number, pageNumber = 1): Ord
 }
 
 describe('Orders staff workflows', () => {
+  let confirmation: Subject<boolean>;
+  let routeParams: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let http: HttpTestingController;
   let socket: FakeSocket;
   let sync: RealtimeSync;
   beforeEach(() => {
-    socket = new FakeSocket();
+    socket = new FakeSocket(); confirmation = new Subject<boolean>();
+    routeParams = new BehaviorSubject(convertToParamMap({ id }));
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
       OrdersStore, OrderDetailStore, { provide: SOCKET_FACTORY, useValue: () => socket },
-      { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id })) } }] });
+      { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => confirmation }) } },
+      { provide: ActivatedRoute, useValue: { paramMap: routeParams } }] });
     http = TestBed.inject(HttpTestingController); sync = TestBed.inject(RealtimeSync);
     http.expectOne('/api/sync').flush({ menuRevision: 0, ordersRevision: 0 });
   });
@@ -68,7 +73,19 @@ describe('Orders staff workflows', () => {
     expect(buttons).toEqual(labels);
     expect(root.textContent).toContain('Original soup'); expect(root.textContent).toContain('Lunch');
     expect(root.textContent).toContain('Quantity: 2 × $7.50'); expect(root.textContent).toContain('$15.00');
-    expect(root.textContent).toContain('−$1.00'); expect(root.textContent).toContain('Total: $14.00');
+    expect(root.textContent).toContain('−$1.00'); expect(root.querySelector('dl')?.textContent).toContain('$14.00');
+  });
+
+  it('cannot confirm cancellation against a different order after the route changes', () => {
+    const fixture = TestBed.createComponent(OrderDetailPage); fixture.detectChanges(); TestBed.tick();
+    http.expectOne(`/api/orders/${id}`).flush(detail()); TestBed.tick();
+    fixture.componentInstance.transition('cancelled');
+    http.expectNone(request => request.method === 'PATCH');
+    routeParams.next(convertToParamMap({ id: otherId })); TestBed.tick();
+    const other = detail(); other.order.id = otherId;
+    http.expectOne(`/api/orders/${otherId}`).flush(other); TestBed.tick();
+    confirmation.next(true);
+    http.expectNone(request => request.method === 'PATCH');
   });
 
   it('sends the displayed entity revision, blocks duplicate/invalid actions, and waits for fresh detail after success', () => {

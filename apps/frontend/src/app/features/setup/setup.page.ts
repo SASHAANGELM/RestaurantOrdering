@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 @Component({
   selector: 'app-setup-page', imports: [RouterLink], changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <p class="eyebrow">Manage the kitchen</p><h1 tabindex="-1">Setup</h1>
+    <h1 tabindex="-1">Settings</h1>
     <p class="muted">Keep your menu ready for service. Changes appear live for everyone.</p>
     <div class="setup-links">
       <a routerLink="/setup/categories"><span class="link-icon" aria-hidden="true">☷</span><h2>Categories</h2><p>Organize your menu and choose the category order.</p><span>Manage categories →</span></a>

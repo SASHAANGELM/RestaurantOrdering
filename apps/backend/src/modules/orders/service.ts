@@ -5,7 +5,7 @@ import {
   type ConfirmOrder, type OrderResponse, type OrdersChanged, type UpdateOrderStatus
 } from '@restaurant-ordering/contracts';
 import type { DatabaseConnection } from '../../db/connection';
-import { appState, checkoutQuotes, orderLines, orders } from '../../db/schema';
+import { appState, checkoutQuotes, orderLines, orders, orderStatusEvents } from '../../db/schema';
 import { HttpError } from '../../middleware/errors';
 import { readMenuRevision, readResolvedItems } from '../menu/queries';
 import { orderNotFound, readOrderResponse } from './queries';
@@ -72,8 +72,9 @@ export function createOrderService(connection: DatabaseConnection) {
           id: randomUUID(), quoteId: input.quoteId, idempotencyKey, requestHash, status: 'placed',
           ...currentTotals, currency: snapshot.currency, createdAt: timestamp, updatedAt: timestamp
         }).returning().get();
+        connection.db.insert(orderStatusEvents).values({ id: randomUUID(), orderId: row.id, revision: row.revision, status: row.status, changedAt: timestamp }).run();
         connection.db.insert(orderLines).values(snapshot.lines.map((line, lineIndex) => ({
-          ...line, id: randomUUID(), orderId: row.id, lineIndex
+          ...line, id: randomUUID(), orderId: row.id, lineIndex, imageUrl: resolved[lineIndex]?.state !== 'missing' ? resolved[lineIndex]?.item.imageUrl ?? null : null
         }))).run();
         return { ...changed(row, 'created'), replayed: false };
       }).immediate();
@@ -93,6 +94,7 @@ export function createOrderService(connection: DatabaseConnection) {
         });
         const row = connection.db.update(orders).set({ status: input.status, revision: current.revision + 1, updatedAt: new Date().toISOString() })
           .where(eq(orders.id, id)).returning().get()!;
+        connection.db.insert(orderStatusEvents).values({ id: randomUUID(), orderId: row.id, revision: row.revision, status: row.status, changedAt: row.updatedAt }).run();
         return changed(row, 'status-changed');
       }).immediate();
     }

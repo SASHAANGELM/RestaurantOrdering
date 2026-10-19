@@ -1,3 +1,4 @@
+import { BusyButton } from './busy-button';
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -5,7 +6,7 @@ import { type ClientError } from '../core/api-client';
 
 @Component({
   selector: 'app-load-state',
-  imports: [MatButton, MatProgressBarModule],
+  imports: [BusyButton, MatButton, MatProgressBarModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (loading()) {
@@ -17,7 +18,7 @@ import { type ClientError } from '../core/api-client';
       <div role="alert" class="error-panel">
         <p>{{ failure.message }}</p>
         @if (failure.body; as body) { <p class="muted">Reference: {{ body.requestId }}</p> }
-        <button mat-stroked-button (click)="retry.emit()">Try again</button>
+        <button [appBusy]="loading()" [disabled]="loading()" mat-stroked-button (click)="retry.emit()">Try again</button>
       </div>
     }
   `

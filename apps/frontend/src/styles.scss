@@ -42,3 +42,22 @@ button .ti, a .ti { margin-right: .3em; }
 .order-row.status-cancelled { border-left-color: #bd5c50; }
 
 .record-unavailable > div:first-child { opacity: .5; }
+
+.danger-zone { padding: 1rem; margin-top: 1.5rem; border: 1px solid #d78e88; border-radius: .5rem; background: #b3261e0d; color: #a12119; }
+.danger-zone p { margin-top: 0; }
+.danger-button { --mat-button-filled-container-color: #ad2920; --mat-button-filled-label-text-color: white; color: #a12119; }
+button.button-busy { position: relative; }
+button.button-busy::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: #ffffffd9; }
+button.button-busy::before { content: ''; position: absolute; z-index: 1; left: calc(50% - .6rem); top: calc(50% - .6rem); width: 1.2rem; height: 1.2rem; border: 2px solid #b7c9d4; border-top-color: #2c6c93; border-radius: 50%; animation: button-spin .7s linear infinite; }
+@keyframes button-spin { to { transform: rotate(360deg); } }
+
+.dialog-confirm-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+
+app-root:has(app-cart-summary .cart-summary) .sync-banner { padding-bottom: 6.5rem; }
+
+button.icon-button, a.icon-button { min-width: 2.75rem; width: 2.75rem; height: 2.75rem; padding: .5rem; border: 0; border-radius: 50%; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: #20303c; }
+.icon-button .ti { margin: 0; font-size: 1.3rem; }
+
+body:has(dialog[open]) { overflow: hidden; }
+
+@media (max-width: 650px) { app-root:has(app-cart-summary .cart-summary) .sync-banner { padding-bottom: 10rem; } }

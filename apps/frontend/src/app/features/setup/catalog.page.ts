@@ -1,3 +1,4 @@
+import { BusyButton } from '../../shared/busy-button';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiClient, clientError } from '../../core/api-client';
 import { setupErrorMessage } from './setup-error';
@@ -7,7 +8,9 @@ import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signa
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
-import { MatCheckbox, type MatCheckboxChange } from '@angular/material/checkbox';
+import { MatCheckbox } from '@angular/material/checkbox';
+import { MatSlideToggle, type MatSlideToggleChange } from '@angular/material/slide-toggle';
+import { ItemImage } from '../../shared/item-image';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
@@ -21,22 +24,21 @@ import { SetupStore } from './setup.store';
 @Component({
   selector: 'app-catalog-page',
   providers: [SetupStore],
-  imports: [RouterLink, CurrencyPipe, ReactiveFormsModule, MatButton, MatCheckbox, MatFormFieldModule, MatInput, MatPaginator, MatSelectModule, LoadState],
+  imports: [BusyButton, ItemImage, MatSlideToggle, RouterLink, CurrencyPipe, ReactiveFormsModule, MatButton, MatCheckbox, MatFormFieldModule, MatInput, MatPaginator, MatSelectModule, LoadState],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
+    .availability-control { position: relative; } .availability-control.saving::after { content: ''; position: absolute; inset: 0; background: #ffffffb3; } .availability-control.saving::before { content: ''; position: absolute; z-index: 1; left: calc(50% - .6rem); top: calc(50% - .6rem); width: 1.2rem; height: 1.2rem; border: 2px solid #b7c9d4; border-top-color: #2c6c93; border-radius: 50%; animation: button-spin .7s linear infinite; }
     .filters { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-top: 1.5rem; }
     .filters mat-form-field { flex: 1 1 14rem; }
     .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
-    .data-list strong { overflow-wrap: anywhere; }
+    .item-copy { flex: 1; min-width: 12rem; } .data-list strong { overflow-wrap: anywhere; }
     mat-paginator { background: transparent; }
   `],
   template: `
-    <div class="page-heading"><div><p class="eyebrow">Manage the kitchen</p><h1 tabindex="-1">{{ kind === 'categories' ? 'Categories' : 'Items' }}</h1></div>
-      <button mat-stroked-button (click)="store.reload()"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh setup</button></div>
-    <nav class="breadcrumbs" aria-label="Breadcrumb"><a routerLink="/setup"><i class="ti ti-settings" aria-hidden="true"></i> Setup</a><i class="ti ti-chevron-right" aria-hidden="true"></i><span aria-current="page">{{ kind === 'categories' ? 'Categories' : 'Items' }}</span></nav>
-    <div class="actions"><a mat-button routerLink="/setup/categories">Categories</a><a mat-button routerLink="/setup/items">Items</a></div>
+    <div class="page-heading"><div><h1 tabindex="-1">{{ kind === 'categories' ? 'Categories' : 'Items' }}</h1></div>
+      <button [appBusy]="store.items.loading() || store.categories.loading()" mat-stroked-button (click)="store.reload()"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh settings</button></div>
+    <nav class="breadcrumbs" aria-label="Breadcrumb"><a routerLink="/setup"><i class="ti ti-settings" aria-hidden="true"></i> Settings</a><i class="ti ti-chevron-right" aria-hidden="true"></i><span aria-current="page">{{ kind === 'categories' ? 'Categories' : 'Items' }}</span></nav>
     @if (availabilityError()) { <p class="error-panel" role="alert">{{ availabilityError() }}</p> }
-    <p class="muted">Manage categories, prices, and availability. Changes appear live in Menu.</p>
     <app-load-state [loading]="store.items.loading() || store.categories.loading()"
       [stale]="store.items.stale() || store.categories.stale()" [error]="store.items.error() || store.categories.error()" (retry)="store.reload()" />
     <mat-checkbox [checked]="store.query().includeArchived" (change)="toggleArchived($event.checked)">Show archived records</mat-checkbox>
@@ -59,24 +61,24 @@ import { SetupStore } from './setup.store';
         <button mat-flat-button [disabled]="!hasActiveCategories()" (click)="edit('item')"><i class="ti ti-plus" aria-hidden="true"></i> Add item</button></div>
       @if (!hasActiveCategories()) { <p class="muted">Add an active category before adding items.</p> }
       <form class="filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
-        <mat-form-field><mat-label><i class="ti ti-search" aria-hidden="true"></i> Search items</mat-label><input matInput formControlName="search" maxlength="120" /></mat-form-field>
-        <mat-form-field><mat-label><i class="ti ti-category" aria-hidden="true"></i> Filter by category</mat-label><mat-select formControlName="categoryId">
+        <mat-form-field appearance="outline"><mat-label><i class="ti ti-search" aria-hidden="true"></i> Search items</mat-label><input matInput formControlName="search" maxlength="120" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label><i class="ti ti-category" aria-hidden="true"></i> Filter by category</mat-label><mat-select formControlName="categoryId">
           <mat-option value="">All categories</mat-option>
           @for (category of store.categories.data()?.categories; track category.id) { <mat-option [value]="category.id">{{ category.name }}</mat-option> }
         </mat-select></mat-form-field>
-        <button mat-stroked-button type="submit"><i class="ti ti-filter" aria-hidden="true"></i> Apply filters</button>
+        <button [appBusy]="store.items.loading()" [disabled]="store.items.loading()" mat-stroked-button type="submit"><i class="ti ti-filter" aria-hidden="true"></i> Apply filters</button>
         <button mat-button type="button" (click)="clearFilters()"><i class="ti ti-filter-off" aria-hidden="true"></i> Clear filters</button>
       </form>
       @if (store.items.data(); as page) {
         <p class="muted">{{ page.total }} items · Page {{ page.page }}</p>
         <ul class="data-list">@for (item of page.items; track item.id) {
-          <li [class.record-unavailable]="!item.available"><div><strong>{{ item.name }}</strong><p class="muted">{{ categoryName(item.categoryId) }} ·
+          <li [class.record-unavailable]="!item.available"><app-item-image [src]="item.imageUrl" [name]="item.name" /><div class="item-copy"><strong>{{ item.name }}</strong><p class="muted">{{ categoryName(item.categoryId) }} ·
             {{ item.pricingMode === 'open' ? 'Open price' : (item.priceMinor / 100 | currency) }} ·
             {{ item.archivedAt ? 'Archived' : item.available ? 'Available' : 'Unavailable' }}</p>
             @if (categoryArchived(item.categoryId)) { <p class="muted">Category archived — cannot be ordered</p> }
           </div>
           @if (!item.archivedAt) {
-            <div class="actions"><mat-checkbox [checked]="item.available" [disabled]="availabilityBusy() !== null" [aria-label]="'Available ' + item.name" (change)="setAvailability(item, $event)">Available</mat-checkbox>
+            <div class="actions"><span class="availability-control" [class.saving]="availabilityBusy() === item.id" [attr.aria-busy]="availabilityBusy() === item.id"><mat-slide-toggle [checked]="item.available" [disabled]="availabilityBusy() !== null" [aria-label]="'Available ' + item.name" (change)="setAvailability(item, $event)">Available</mat-slide-toggle>@if (availabilityBusy() === item.id) { <span class="sr-only" role="status">Saving availability…</span> }</span>
               <button mat-button [attr.aria-label]="'Edit item ' + item.name" (click)="edit('item', item)"><i class="ti ti-edit" aria-hidden="true"></i> Edit</button></div>
           }</li>
         } @empty { <li>No items match these filters.</li> }</ul>
@@ -97,7 +99,7 @@ export class CatalogPage {
   private readonly sync = inject(RealtimeSync);
   readonly availabilityBusy = signal<string | null>(null);
   readonly availabilityError = signal('');
-  setAvailability(item: MenuItem, event: MatCheckboxChange) {
+  setAvailability(item: MenuItem, event: MatSlideToggleChange) {
     const available = event.checked;
     // Keep the authoritative value visible until a revision-checked write succeeds.
     event.source.checked = item.available;

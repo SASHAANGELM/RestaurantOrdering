@@ -38,22 +38,23 @@ test('cart preserves open-price lines, drafts, route/reload state and off-page r
   await expect(page.getByRole('button', { name: `Add ${open.name} to cart`, exact: true })).toBeFocused();
   await page.getByRole('button', { name: `Add ${open.name} to cart`, exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Set open price' });
-  await expect(dialog.getByRole('textbox', { name: 'Quantity', exact: true })).toHaveValue('1');
+  await expect(dialog.getByRole('spinbutton', { name: 'Quantity', exact: true })).toHaveValue('1');
   await dialog.getByRole('combobox', { name: 'Cart entry' }).click();
   await page.getByRole('option', { name: 'New price / cart line', exact: true }).click();
   await dialog.getByRole('textbox', { name: 'Unit price (USD)', exact: true }).fill('2.00');
   await dialog.getByRole('button', { name: 'Add to cart', exact: true }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
   await expect(cart.getByRole('listitem')).toHaveCount(3);
+  await cart.getByText('Add a discount', { exact: true }).click();
   await cart.getByRole('textbox', { name: 'Fixed discount (USD)', exact: true }).fill('0.25');
   await expect(cart.locator('dl .total')).toContainText('$18.00');
-  await cart.getByRole('textbox', { name: `Cart quantity for ${fixed.name}`, exact: true }).fill('0');
+  await cart.getByRole('spinbutton', { name: `Cart quantity for ${fixed.name}`, exact: true }).fill('0');
   await expect(cart.getByRole('alert').first()).toContainText('1 to 99');
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Orders', exact: true }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
-  await expect(cart.getByRole('textbox', { name: `Cart quantity for ${fixed.name}`, exact: true })).toHaveValue('0');
+  await expect(cart.getByRole('spinbutton', { name: `Cart quantity for ${fixed.name}`, exact: true })).toHaveValue('0');
   await page.reload(); await expect(cart.getByRole('listitem')).toHaveCount(3);
-  await cart.getByRole('textbox', { name: `Cart quantity for ${fixed.name}`, exact: true }).fill('2');
+  await cart.getByRole('spinbutton', { name: `Cart quantity for ${fixed.name}`, exact: true }).fill('2');
   await expect(cart.locator('dl .total')).toContainText('$18.00');
   const other = await page.context().newPage();
   try {
@@ -66,11 +67,11 @@ test('cart preserves open-price lines, drafts, route/reload state and off-page r
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
     const line = cart.getByRole('listitem').filter({ hasText: fixed.name });
     await expect(line).toContainText('Price changed from $7.50 to $9.00'); await expect(line).toContainText('Unavailable');
-    await expect(line.getByRole('textbox')).toHaveValue('2'); await expect(cart.locator('dl .total')).toContainText('$18.00');
+    await expect(line.getByRole('spinbutton')).toHaveValue('2'); await expect(cart.locator('dl .total')).toContainText('$18.00');
     expect((await request.patch(`/api/setup/categories/${category.id}`, { data: { expectedRevision: 1, archived: true } })).ok()).toBe(true);
     await expect(line).toContainText('Category archived'); await expect(cart.getByRole('listitem')).toHaveCount(3);
     await page.route('**/api/menu/resolve', (route) => route.abort('failed'));
-    await page.getByRole('button', { name: 'Refresh cart', exact: true }).click();
+    expect((await request.patch(`/api/setup/items/${open.id}`, { data: { expectedRevision: 1, description: 'Trigger automatic cart reconciliation' } })).ok()).toBe(true);
     await expect(cart.getByRole('alert')).toContainText('Cannot reach the server');
     await cart.getByRole('textbox', { name: 'Fixed discount (USD)', exact: true }).fill('99');
     await expect(cart.getByRole('alert').last()).toContainText('Discount cannot exceed');
@@ -81,7 +82,7 @@ test('cart preserves open-price lines, drafts, route/reload state and off-page r
   } finally { await other.close(); }
 });
 
-test('menu debounces search, filters by category, bounds pages and retains quantity focus through refresh', async ({ page, request }) => {
+test('menu filters locally by search/category and bounds rendered pages and retains quantity focus through refresh', async ({ page, request }) => {
   const { name, category, fixed } = await fixture(request);
   for (let index = 0; index < 11; index++) {
     expect((await request.post('/api/setup/items', { data: { name: `${name} ${index}`, categoryId: category.id, available: true, pricingMode: 'fixed', priceMinor: 100 } })).ok()).toBe(true);
@@ -98,20 +99,15 @@ test('menu debounces search, filters by category, bounds pages and retains quant
   page.on('request', (r) => { if (r.url().includes('/api/menu/items?')) searches.push(new URL(r.url())); });
   await search(page, `${name} F`); await search(page, `${name} Fi`); await search(page, fixed.name);
   await expect(menu.getByRole('listitem')).toHaveCount(1);
-  // Concurrent Setup writes can also refresh the same query. Debouncing must
-  // suppress intermediate search strings, rather than suppress live updates.
-  expect(searches.every((url) => [name, fixed.name].includes(url.searchParams.get('search') ?? ''))).toBe(true);
-  const finalSearch = searches.find((url) => url.searchParams.get('search') === fixed.name);
-  expect(finalSearch?.searchParams.get('categoryId')).toBe(category.id);
-  expect(finalSearch?.searchParams.get('page')).toBe('1'); expect(finalSearch?.searchParams.get('pageSize')).toBe('10');
+  expect(searches).toEqual([]);
   await page.getByRole('button', { name: `Add ${fixed.name} to cart`, exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Set quantity', exact: true });
-  const quantity = dialog.getByRole('textbox', { name: 'Quantity', exact: true }); await quantity.fill('3');
+  const quantity = dialog.getByRole('spinbutton', { name: 'Quantity', exact: true }); await quantity.fill('3');
   expect((await request.patch(`/api/setup/items/${fixed.id}`, { data: { expectedRevision: 1, description: 'Updated without stealing focus' } })).ok()).toBe(true);
   await expect(menu).toContainText('Updated without stealing focus'); await expect(quantity).toBeFocused(); await expect(quantity).toHaveValue('3');
   await dialog.getByRole('button', { name: 'Add to cart', exact: true }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: `Cart quantity for ${fixed.name}`, exact: true })).toHaveValue('3');
+  await expect(page.getByRole('spinbutton', { name: `Cart quantity for ${fixed.name}`, exact: true })).toHaveValue('3');
 });
 
 test('corrupt and unavailable sessionStorage show recovery notices and allow in-memory cart edits', async ({ page, request, browser, baseURL }) => {
@@ -130,7 +126,7 @@ test('corrupt and unavailable sessionStorage show recovery notices and allow in-
     await noStorage.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
     const cart = noStorage.getByRole('region', { name: 'Your cart' });
     await expect(cart).toContainText('Cart changes cannot be saved'); await expect(cart.getByRole('listitem')).toHaveCount(1);
-    await cart.getByRole('textbox', { name: `Cart quantity for ${fixed.name}`, exact: true }).fill('3');
+    await cart.getByRole('spinbutton', { name: `Cart quantity for ${fixed.name}`, exact: true }).fill('3');
     await expect(cart.locator('dl .total')).toContainText('$22.50');
   } finally { await context.close(); }
 });

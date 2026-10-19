@@ -1,3 +1,4 @@
+import { gzipSync } from 'node:zlib';
 import { Router } from 'express';
 import { z } from 'zod';
 import {
@@ -6,7 +7,7 @@ import {
 } from '@restaurant-ordering/contracts';
 import type { DatabaseConnection } from '../../db/connection';
 import { validateRequest } from '../../middleware/validation';
-import { listCategories, listItems, resolveItems } from './queries';
+import { listCategories, listItems, resolveItems, readCatalog } from './queries';
 import { createMenuService } from './service';
 import type { Notifications } from '../realtime/server';
 
@@ -16,6 +17,13 @@ export function createMenuRouter(connection: DatabaseConnection, notifications?:
   const router = Router();
   const service = createMenuService(connection);
   router.use((_request, response, next) => { response.setHeader('Cache-Control', 'no-store'); next(); });
+  router.get('/menu/catalog', (request, response) => {
+    const catalog = readCatalog(connection);
+    response.vary('Accept-Encoding');
+    if (request.acceptsEncodings('gzip')) {
+      response.type('application/json').set('Content-Encoding', 'gzip').send(gzipSync(JSON.stringify(catalog)));
+    } else response.json(catalog);
+  });
   router.get('/menu/categories', (request, response) => {
     const query = validateRequest(menuCategoriesQuerySchema, request.query, 'query');
     response.json(listCategories(connection, false, query.search ?? ''));

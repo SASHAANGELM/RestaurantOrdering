@@ -74,7 +74,7 @@ describe('SQLite persistence on isolated real files', () => {
       createdAt: snapshot.createdAt, updatedAt: snapshot.createdAt
     };
     connection.db.insert(orders).values(order).run();
-    const line = { ...snapshot.lines[0]!, id: randomUUID(), orderId: order.id, lineIndex: 0 };
+    const line = { ...snapshot.lines[0]!, imageUrl: null, comment: null, id: randomUUID(), orderId: order.id, lineIndex: 0 };
     connection.db.insert(orderLines).values(line).run();
     return { ...fixture, order, line };
   }
@@ -97,7 +97,7 @@ describe('SQLite persistence on isolated real files', () => {
   it('repeats migrations without changing data or adding journal entries', () => {
     menuFixture();
     const before = connection.sqlite.prepare('SELECT * FROM __drizzle_migrations').all();
-    expect(before).toHaveLength(2);
+    expect(before).toHaveLength(4);
     migrateDatabase(connection);
     connection.close();
     connection = open({ seedMode: 'small' });
@@ -118,7 +118,22 @@ describe('SQLite persistence on isolated real files', () => {
     expect(() => open({ migrationsFolder })).toThrow();
     connection = open();
     expect(connection.sqlite.prepare("SELECT name FROM sqlite_master WHERE name = 'partial_migration'").get()).toBeUndefined();
-    expect(connection.sqlite.prepare('SELECT * FROM __drizzle_migrations').all()).toHaveLength(2);
+    expect(connection.sqlite.prepare('SELECT * FROM __drizzle_migrations').all()).toHaveLength(4);
+  });
+
+  it('migrates legacy order history using only known timestamps and backfills images once', () => {
+    const { order, item, line } = orderFixture();
+    const latest = '2026-01-01T12:10:00.000Z';
+    connection.sqlite.exec('DROP TABLE order_status_events; ALTER TABLE order_lines DROP COLUMN image_url; ALTER TABLE order_lines DROP COLUMN comment;');
+    connection.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= 1792357445896').run();
+    connection.db.update(orders).set({ status: 'ready', revision: 3, updatedAt: latest }).where(eq(orders.id, order.id)).run();
+    migrateDatabase(connection);
+    expect(connection.sqlite.prepare('SELECT revision, status, changed_at FROM order_status_events WHERE order_id = ? ORDER BY revision').all(order.id)).toEqual([
+      { revision: 1, status: 'placed', changed_at: order.createdAt }, { revision: 3, status: 'ready', changed_at: latest }
+    ]);
+    expect(connection.db.select().from(orderLines).where(eq(orderLines.id, line.id)).get()?.imageUrl).toBe(item.imageUrl);
+    migrateDatabase(connection);
+    expect(connection.sqlite.prepare('SELECT count(*) AS count FROM order_status_events').get()).toEqual({ count: 2 });
   });
 
   it('fails on missing migration assets without seeding', () => {

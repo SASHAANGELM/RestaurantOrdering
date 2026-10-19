@@ -10,7 +10,7 @@ describe('menu cart summary', () => {
   function setup(quantities: string[] = []) {
     const store = {
       checkoutLocked: signal(false),
-      lines: signal(quantities.map((quantityText) => ({ quantityText }))),
+      lines: signal(quantities.map((quantityText) => ({ quantityText, item: { id: quantityText, name: 'Soup' } }))),
       entries: signal<{ inputIssue: string | null; changes: string[] }[]>([]),
       estimate: signal<{ error: string | null; totalMinor: number | null }>({ error: null, totalMinor: 1500 }),
       resolved: { error: signal<unknown>(null), stale: signal(false) }, storageNotice: signal<string | null>(null)
@@ -22,7 +22,7 @@ describe('menu cart summary', () => {
   it('hides an empty cart and sums quantities instead of counting lines', () => {
     const { store, fixture, component } = setup();
     expect(fixture.nativeElement.querySelector('footer')).toBeNull();
-    store.lines.set([{ quantityText: '2' }, { quantityText: '3' }]); fixture.detectChanges();
+    store.lines.set([{ quantityText: '2', item: { id: '2', name: 'Soup' } }, { quantityText: '3', item: { id: '3', name: 'Bread' } }]); fixture.detectChanges();
     expect(component.count()).toBe(5);
     expect(fixture.nativeElement.textContent).toContain('5 items in your cart');
     expect(fixture.nativeElement.textContent).toContain('$15.00');

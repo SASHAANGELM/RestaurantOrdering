@@ -48,7 +48,7 @@ test('orders appear live, filters add/remove membership, and two independent sta
       await expect(link(client, order)).toBeVisible();
       await expect(client.locator('.order-row').filter({ has: link(client, order) })).toHaveClass(/status-placed/);
     }
-    await link(page, order).click(); await expect(page.getByText('Total: $14.00', { exact: true })).toBeVisible();
+    await link(page, order).click(); await expect(page.locator('dl')).toContainText('$14.00');
     await expect(page.getByText('Quantity: 2 × $7.50', { exact: true })).toBeVisible();
     await filter(second, 'Preparing'); await expect(link(second, order)).not.toBeVisible();
     await page.getByRole('button', { name: 'Start preparing', exact: true }).click();
@@ -81,7 +81,7 @@ test('stale and lost staff responses retain order context and require refresh; c
     order = await change(request, order, 'preparing');
     await route.fulfill({ response: await route.fetch() });
   });
-  await page.getByRole('button', { name: 'Cancel order', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancel order', exact: true }).click(); await page.getByRole('dialog', { name: 'Cancel order?' }).getByRole('button', { name: 'Cancel order', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Could not set status to cancelled');
   await expect(page.getByRole('alert')).toContainText('Another staff action changed this order');
   await expect(page.getByText(item.name, { exact: true })).toBeVisible();
@@ -93,13 +93,13 @@ test('stale and lost staff responses retain order context and require refresh; c
   await page.route(`**/api/orders/${order.id}/status`, async (route) => {
     posts++; const response = await route.fetch(); expect(response.ok()).toBe(true); await route.abort('failed');
   });
-  await page.getByRole('button', { name: 'Cancel order', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancel order', exact: true }).click(); await page.getByRole('dialog', { name: 'Cancel order?' }).getByRole('button', { name: 'Cancel order', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('The update may have reached the server');
   await page.getByRole('button', { name: 'Refresh latest status', exact: true }).click();
   await expect(page.getByText('Status: Cancelled', { exact: true })).toBeVisible(); expect(posts).toBe(2);
   await expect(page.getByRole('button', { name: 'Cancel order', exact: true })).not.toBeVisible();
   const placed = await createOrder(request, item); await page.goto(`/orders/${placed.id}`);
-  await page.getByRole('button', { name: 'Cancel order', exact: true }).click(); await expect(page.getByText('Status: Cancelled', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel order', exact: true }).click(); await page.getByRole('dialog', { name: 'Cancel order?' }).getByRole('button', { name: 'Cancel order', exact: true }).click(); await expect(page.getByText('Status: Cancelled', { exact: true })).toBeVisible();
 });
 
 test('orders use bounded server pages, keep filters during paging, and recover an empty last page after live removals', async ({ page, request }, testInfo) => {

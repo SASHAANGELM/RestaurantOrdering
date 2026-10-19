@@ -84,11 +84,17 @@ export class CheckoutStore {
     }
   }
 
-  review() {
+  placeOrder() {
+    if (!this.canReview() || this.sync.syncing() || this.sync.error()) return;
+    this.review(true);
+  }
+
+  review(placeAfterCheck = false) {
     if (!this.canReview()) return;
     let body;
     try {
       body = createQuoteSchema.parse({ lines: this.cart.lines().map((line) => ({
+        ...(line.comment ? { comment: line.comment } : {}),
         itemId: line.item.id, quantity: quantityValue(line.quantityText),
         ...(line.item.pricingMode === 'open' ? { openPriceMinor: entryPrice(line) } : {}),
         observedRevision: line.item.revision, observedUnitPriceMinor: entryPrice(line), observedName: line.item.name
@@ -115,6 +121,10 @@ export class CheckoutStore {
         this.now.set(Date.now());
         this.quote.set(quote);
         this.sync.observe({ menuRevision: quote.menuRevision });
+        if (placeAfterCheck) {
+          this.confirm();
+          if (!this.attempt() && !this.completedOrderId()) this.message.set('The cart or connection changed during the check. Confirm again to place the current order.');
+        }
       },
       error: (error: unknown) => { this.busy.set(false); this.message.set(this.describe(error)); }
     });

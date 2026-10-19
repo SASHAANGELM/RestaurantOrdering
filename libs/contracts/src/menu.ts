@@ -112,3 +112,11 @@ export type ItemMutationResponse = z.infer<typeof itemMutationResponseSchema>;
 export type ResolveItemsRequest = z.infer<typeof resolveItemsRequestSchema>;
 export type ResolvedItem = z.infer<typeof resolvedItemSchema>;
 export type ResolveItemsResponse = z.infer<typeof resolveItemsResponseSchema>;
+
+
+/** Complete active catalog for local browsing. No pagination or search parameters. */
+export const menuCatalogSchema = z.strictObject({
+  categories: z.array(categorySchema), items: z.array(menuItemSchema),
+  menuRevision: revisionSchema, menuUpdatedAt: timestampSchema.nullable().optional()
+});
+export type MenuCatalog = z.infer<typeof menuCatalogSchema>;

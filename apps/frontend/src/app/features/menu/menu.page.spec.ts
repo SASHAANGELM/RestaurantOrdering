@@ -19,26 +19,15 @@ describe('menu filter timing', () => {
   }
   afterEach(() => { TestBed.resetTestingModule(); vi.useRealTimers(); });
 
-  it('sends only the latest search after 250ms and resets pagination', () => {
-    const { page, setQuery } = setup();
-    page.filters.controls.search.setValue('s'); vi.advanceTimersByTime(200);
-    page.filters.controls.search.setValue('so'); vi.advanceTimersByTime(200);
-    page.filters.controls.search.setValue(' soup '); vi.advanceTimersByTime(249);
-    expect(setQuery).not.toHaveBeenCalled(); vi.advanceTimersByTime(1);
-    expect(setQuery).toHaveBeenCalledExactlyOnceWith({ page: 1, pageSize: 25, search: 'soup', categoryId: undefined });
+  it('filters immediately in memory and resets pagination', () => {
+    const { page, query } = setup();
+    page.filters.controls.search.setValue(' soup ');
+    expect(query()).toEqual({ page: 1, pageSize: 25, search: 'soup', categoryId: undefined });
   });
-
-  it('applies category filters immediately and clears both filters without a second delayed query', () => {
-    const { page, setQuery, query } = setup();
-    page.filters.controls.categoryId.setValue('11111111-1111-4111-8111-111111111111');
-    expect(query()).toMatchObject({ page: 1, pageSize: 25, categoryId: '11111111-1111-4111-8111-111111111111' });
-    page.clearFilters(); vi.advanceTimersByTime(300);
-    expect(query()).toEqual({ page: 1, pageSize: 25, categoryId: undefined, search: '' });
-    expect(setQuery).toHaveBeenCalledTimes(2);
-  });
-
-  it('cancels a pending search when the route is destroyed', () => {
-    const { page, setQuery } = setup(); page.filters.controls.search.setValue('pending');
-    TestBed.resetTestingModule(); vi.advanceTimersByTime(300); expect(setQuery).not.toHaveBeenCalled();
+  it('clears only the search and preserves the selected category', () => {
+    const { page, query } = setup();
+    page.selectCategory('11111111-1111-4111-8111-111111111111');
+    page.filters.controls.search.setValue('soup'); page.clearFilters();
+    expect(query()).toMatchObject({ page: 1, categoryId: '11111111-1111-4111-8111-111111111111', search: '' });
   });
 });

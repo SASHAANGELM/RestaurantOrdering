@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  apiErrorSchema, categoriesResponseSchema, categoryMutationResponseSchema, itemMutationResponseSchema,
+  apiErrorSchema, menuCatalogSchema, categoriesResponseSchema, categoryMutationResponseSchema, itemMutationResponseSchema,
   itemsResponseSchema, menuChangedSchema, resolveItemsResponseSchema, type Category, type MenuItem
 } from '@restaurant-ordering/contracts';
 import { createApp } from '../../app';
@@ -61,6 +61,24 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     return result;
   }
   async function patchItem(body: unknown) { return request(`/setup/items/${item.id}`, 'PATCH', body); }
+
+  it('loads every active category and item in a single catalog snapshot, beyond page limits', async () => {
+    service.createCategory({ name: 'Empty category', sortOrder: 1 });
+    for (let index = 0; index < 125; index++) service.createItem({ categoryId: category.id, name: `Dish ${index}`, available: index !== 0, pricingMode: 'fixed', priceMinor: 100 });
+    const removed = service.createItem({ categoryId: category.id, name: 'Archived', available: true, pricingMode: 'fixed', priceMinor: 100 }).response.item;
+    service.updateItem(removed.id, { expectedRevision: 1, archived: true });
+    const response = await request('/menu/catalog');
+    expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('no-store');
+    const catalog = menuCatalogSchema.parse(await response.json());
+    expect(catalog.items).toHaveLength(126); expect(catalog.categories).toHaveLength(2);
+    expect(catalog.items.at(-1)?.available).toBe(false);
+    expect(catalog.menuRevision).toBe(readMenuRevision(connection));
+    expect(response.headers.get('content-encoding')).toBe('gzip');
+    expect(response.headers.get('vary')).toContain('Accept-Encoding');
+    const identity = await fetch(`${baseUrl}/menu/catalog`, { headers: { 'Accept-Encoding': 'identity' } });
+    expect(identity.headers.get('content-encoding')).toBeNull();
+    expect(await identity.json()).toEqual(catalog);
+  });
 
   it('creates, trims, edits, and persists categories and items through HTTP', async () => {
     const created = await request('/setup/categories', 'POST', { name: '  Drinks  ', sortOrder: -1 });

@@ -42,7 +42,7 @@ export class RealtimeSync {
 
   observe(state: Partial<SyncState>) {
     if ((state.menuRevision ?? -1) > this.revisions().menuRevision && state.menuUpdatedAt === undefined) this.menuWaiting.set(true);
-    if (state.menuUpdatedAt !== undefined && (state.menuRevision ?? -1) >= this.revisions().menuRevision) { this.menuModified.set(state.menuUpdatedAt); this.menuWaiting.set(false); }
+    if (state.menuUpdatedAt !== undefined && (state.menuRevision ?? -1) >= this.revisions().menuRevision) { this.menuModified.set(state.menuUpdatedAt); this.checked.set(Date.now()); this.menuWaiting.set(false); }
     this.revisions.update((current) => {
       const next = {
         menuRevision: Math.max(current.menuRevision, state.menuRevision ?? 0),

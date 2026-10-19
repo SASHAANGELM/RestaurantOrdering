@@ -1,3 +1,4 @@
+import { BusyButton } from './busy-button';
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, type Injector } from '@angular/core';
 import { MatButton } from '@angular/material/button';
@@ -6,7 +7,7 @@ import { RealtimeSync } from '../core/realtime-sync';
 
 @Component({
   selector: 'app-connection-dialog',
-  imports: [DatePipe, MatButton, MatDialogModule],
+  imports: [BusyButton, DatePipe, MatButton, MatDialogModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h2 mat-dialog-title id="connection-title">Connection details</h2>
@@ -18,7 +19,7 @@ import { RealtimeSync } from '../core/realtime-sync';
       <p role="status">{{ sync.syncing() ? 'Checking for updates…' : sync.error()?.message }}</p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button (click)="sync.check()" [disabled]="sync.syncing()"><i class="ti ti-refresh" aria-hidden="true"></i> Check for updates</button>
+      <button [appBusy]="sync.syncing()" mat-button (click)="sync.check()" [disabled]="sync.syncing()"><i class="ti ti-refresh" aria-hidden="true"></i> Check for updates</button>
       <button mat-flat-button mat-dialog-close><i class="ti ti-x" aria-hidden="true"></i> Close</button>
     </mat-dialog-actions>
   `

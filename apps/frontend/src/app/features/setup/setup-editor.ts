@@ -1,8 +1,9 @@
+import { BusyButton } from '../../shared/busy-button';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
-import { MatCheckbox } from '@angular/material/checkbox';
+import { MatSlideToggle } from '@angular/material/slide-toggle';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
@@ -24,12 +25,11 @@ export interface SetupEditorData {
 
 @Component({
   selector: 'app-setup-editor',
-  imports: [ReactiveFormsModule, MatButton, MatCheckbox, MatDialogModule, MatFormFieldModule, MatInput, MatSelectModule],
+  imports: [BusyButton, ReactiveFormsModule, MatButton, MatSlideToggle, MatDialogModule, MatFormFieldModule, MatInput, MatSelectModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
     form { display: grid; gap: .75rem; padding-top: .5rem; }
     mat-form-field { width: 100%; }
-    .archive-button { margin-right: auto; color: #923e2a; }
     .error-panel { overflow-wrap: anywhere; }
   `],
   template: `
@@ -42,49 +42,47 @@ export interface SetupEditorData {
         } @else {
           <p>This item will disappear from Menu and cannot be ordered, including from existing carts.</p>
         }
-        <p>Existing orders keep their original details. Archival cannot be undone in this prototype.</p>
+        <p>Existing orders keep their original details. Archival cannot be undone.</p><div class="dialog-confirm-actions"><button mat-button [disabled]="busy()" (click)="dialog.close()">Cancel</button>
+        <button [appBusy]="busy()" mat-flat-button class="danger-button" [disabled]="busy() || !!entity()?.archivedAt || conflict()" (click)="save()">{{ busy() ? 'Archiving…' : 'Archive' }}</button>
+        </div>
       } @else {
         <form id="setup-form" [formGroup]="form" (ngSubmit)="save()">
-          <mat-form-field><mat-label><i class="ti ti-tag" aria-hidden="true"></i> Name</mat-label><input matInput formControlName="name" maxlength="120" required /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label><i class="ti ti-tag" aria-hidden="true"></i> Name</mat-label><input matInput formControlName="name" maxlength="120" required /></mat-form-field>
           @if (data.kind === 'category') {
-            <mat-form-field><mat-label><i class="ti ti-arrows-sort" aria-hidden="true"></i> Sort order</mat-label><input matInput type="number" formControlName="sortOrder" step="1" required /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label><i class="ti ti-arrows-sort" aria-hidden="true"></i> Sort order</mat-label><input matInput type="number" formControlName="sortOrder" step="1" required /></mat-form-field>
           } @else {
-            <mat-form-field><mat-label><i class="ti ti-category" aria-hidden="true"></i> Category</mat-label>
+            <mat-form-field appearance="outline"><mat-label><i class="ti ti-category" aria-hidden="true"></i> Category</mat-label>
               <mat-select formControlName="categoryId" required>
                 @for (category of categories(); track category.id) {
                   <mat-option [value]="category.id" [disabled]="category.archivedAt !== null">{{ category.name }}{{ category.archivedAt ? ' (archived)' : '' }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
-            <mat-form-field><mat-label><i class="ti ti-align-left" aria-hidden="true"></i> Description</mat-label><textarea matInput formControlName="description" maxlength="2000" rows="3"></textarea></mat-form-field>
-            <mat-form-field><mat-label><i class="ti ti-photo" aria-hidden="true"></i> Image URL</mat-label><input matInput formControlName="imageUrl" maxlength="2048" /><mat-hint>A backend /api/images/ path or an HTTPS image URL</mat-hint></mat-form-field>
-            <mat-form-field><mat-label><i class="ti ti-coin" aria-hidden="true"></i> Pricing</mat-label>
+            <mat-form-field appearance="outline"><mat-label><i class="ti ti-align-left" aria-hidden="true"></i> Description</mat-label><textarea matInput formControlName="description" maxlength="2000" rows="3"></textarea></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label><i class="ti ti-photo" aria-hidden="true"></i> Image URL</mat-label><input matInput formControlName="imageUrl" maxlength="2048" /><mat-hint>A backend /api/images/ path or an HTTPS image URL</mat-hint></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label><i class="ti ti-coin" aria-hidden="true"></i> Pricing</mat-label>
               <mat-select formControlName="pricingMode"><mat-option value="fixed">Fixed price</mat-option><mat-option value="open">Open price</mat-option></mat-select>
             </mat-form-field>
             @if (form.controls.pricingMode.value === 'fixed') {
-              <mat-form-field><mat-label><i class="ti ti-currency-dollar" aria-hidden="true"></i> Price (USD)</mat-label><input matInput formControlName="price" inputmode="decimal" required />
+              <mat-form-field appearance="outline"><mat-label><i class="ti ti-currency-dollar" aria-hidden="true"></i> Price (USD)</mat-label><input matInput formControlName="price" inputmode="decimal" required />
                 <mat-hint>0.00–10,000.00, up to two decimal places</mat-hint></mat-form-field>
             } @else { <p>A price is entered when ordering. No fixed price will be saved.</p> }
-            <mat-checkbox formControlName="available">Available for ordering</mat-checkbox>
+            <mat-slide-toggle formControlName="available">Available for ordering</mat-slide-toggle>
           }
         </form>
       }
       @if (message(); as text) { <p class="error-panel" role="alert">{{ text }}</p> }
       @if (error()?.body; as body) { <p class="muted">Request reference: {{ body.requestId }}</p> }
       @if (error()?.body?.code === 'REVISION_CONFLICT' || error()?.body?.code === 'CATEGORY_ARCHIVED') {
-        <button mat-stroked-button [disabled]="busy()" (click)="reloadLatest()">Reload latest values</button>
+        <button [appBusy]="busy()" mat-stroked-button [disabled]="busy()" (click)="reloadLatest()">Reload latest values</button>
       }
       @if (entity()?.archivedAt) { <p role="status">This record is archived. Close this dialog to continue.</p> }
+      @if (!archiving() && entity() && !entity()?.archivedAt) { <div class="danger-zone"><p>Archiving removes this {{ data.kind }} from the menu.</p><button mat-stroked-button class="danger-button" [disabled]="busy() || conflict()" (click)="beginArchive()">Archive {{ data.kind }}</button></div> }
     </mat-dialog-content>
-    <mat-dialog-actions align="end">
+    @if (!archiving()) { <mat-dialog-actions align="end">
       <button mat-button [disabled]="busy()" (click)="dialog.close()"><i class="ti ti-x" aria-hidden="true"></i> Cancel</button>
-      @if (archiving()) {
-        <button mat-flat-button [disabled]="busy() || !!entity()?.archivedAt || conflict()" (click)="save()">{{ busy() ? 'Archiving…' : 'Archive' }}</button>
-      } @else {
-        @if (entity() && !entity()?.archivedAt) { <button mat-button class="archive-button" [disabled]="busy() || conflict()" (click)="beginArchive()">Archive {{ data.kind }}</button> }
-        <button mat-flat-button type="submit" form="setup-form" [disabled]="busy() || !!entity()?.archivedAt || conflict()">{{ busy() ? 'Saving…' : 'Save' }}</button>
-      }
-    </mat-dialog-actions>
+      <button [appBusy]="busy()" mat-flat-button type="submit" form="setup-form" [disabled]="busy() || !!entity()?.archivedAt || conflict()">{{ busy() ? 'Saving…' : 'Save' }}</button>
+    </mat-dialog-actions> }
   `
 })
 export class SetupEditor {

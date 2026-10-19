@@ -75,3 +75,16 @@ export function resolveItems(connection: DatabaseConnection, itemIds: string[]) 
     items: readResolvedItems(connection, itemIds), menuRevision: readMenuRevision(connection), menuUpdatedAt: readSyncState(connection).menuUpdatedAt
   }))();
 }
+
+
+export function readCatalog(connection: DatabaseConnection) {
+  return connection.sqlite.transaction(() => {
+    const activeCategories = connection.db.select().from(categories).where(isNull(categories.archivedAt))
+      .orderBy(asc(categories.sortOrder), asc(categories.id)).all().map(toCategory);
+    const items = connection.db.select({ item: menuItems }).from(menuItems)
+      .innerJoin(categories, eq(menuItems.categoryId, categories.id))
+      .where(and(isNull(menuItems.archivedAt), isNull(categories.archivedAt)))
+      .orderBy(desc(menuItems.available), asc(menuItems.name), asc(menuItems.id)).all().map(({ item }) => toItem(item));
+    return { categories: activeCategories, items, menuRevision: readMenuRevision(connection), menuUpdatedAt: readSyncState(connection).menuUpdatedAt };
+  })();
+}

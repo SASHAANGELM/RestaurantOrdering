@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { MatTooltip } from '@angular/material/tooltip';
 import { MatButton } from '@angular/material/button';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { CartStore } from './cart.store';
@@ -8,9 +9,8 @@ import { CartStore } from './cart.store';
   template: `<h2 mat-dialog-title id="clear-cart-title">Clear your cart?</h2>
     <mat-dialog-content><p>Remove all items and reset the discount? This cannot be undone.</p>
       @if (cart.checkoutLocked()) { <p role="alert">Resolve the pending checkout before clearing your cart.</p> }
-    </mat-dialog-content>
-    <mat-dialog-actions align="end"><button mat-button mat-dialog-close>Cancel</button>
-      <button mat-flat-button [disabled]="cart.checkoutLocked()" (click)="clear()"><i class="ti ti-trash" aria-hidden="true"></i> Clear cart</button></mat-dialog-actions>`
+    </mat-dialog-content><mat-dialog-actions align="end"><button mat-button mat-dialog-close>Cancel</button>
+      <button mat-flat-button class="danger-button" [disabled]="cart.checkoutLocked()" (click)="clear()"><i class="ti ti-trash" aria-hidden="true"></i> Clear cart</button></mat-dialog-actions>`
 })
 export class ClearCartDialog {
   readonly cart = inject(CartStore);
@@ -19,9 +19,9 @@ export class ClearCartDialog {
 }
 
 @Component({
-  selector: 'app-clear-cart-button', imports: [MatButton], changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<button mat-stroked-button aria-label="Clear cart" [disabled]="cart.checkoutLocked() || !cart.lines().length" (click)="open()"><i class="ti ti-trash" aria-hidden="true"></i><span>Clear cart</span></button>`,
-  styles: [`:host { display: inline-block; } @media (max-width: 520px) { :host-context(app-cart-summary) span { display: none; } :host-context(app-cart-summary) button { min-width: 2.5rem; padding: 0 .5rem; } }`]
+  selector: 'app-clear-cart-button', imports: [MatButton, MatTooltip], changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<button mat-button class="icon-button" matTooltip="Clear cart" aria-label="Clear cart" [disabled]="cart.checkoutLocked() || !cart.lines().length" (click)="open()"><i class="ti ti-trash" aria-hidden="true"></i></button>`,
+  styles: [`:host { display: inline-block; }`]
 })
 export class ClearCartButton {
   readonly cart = inject(CartStore);

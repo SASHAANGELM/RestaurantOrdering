@@ -108,6 +108,46 @@ describe('orders with isolated real SQLite files', () => {
     expect(readOrdersRevision(connection)).toBe(0);
   }
 
+  it('retains distinct kitchen comments on quote and immutable order lines through replay and restart', async () => {
+    const snapshot = quote([line(fixed, { comment: 'No mustard' }), line(fixed, { comment: 'Extra mustard' })]);
+    expect(snapshot.lines.map(entry => entry.comment)).toEqual(['No mustard', 'Extra mustard']);
+    const key = randomUUID(); const placed = place(snapshot, key).response.order;
+    expect(placed.lines.map(entry => entry.comment)).toEqual(['No mustard', 'Extra mustard']);
+    expect(place(snapshot, key).response.order).toEqual(placed);
+    await stop(); connection = initializeDatabase({ filename }); await start();
+    expect(getOrder(connection, placed.id).order.lines).toEqual(placed.lines);
+  });
+
+  it('persists every successful status timestamp and the item image through replay, menu changes and restart', async () => {
+    const image = '/api/images/soup.jpg';
+    const pictured = menu.updateItem(fixed.id, { expectedRevision: fixed.revision, imageUrl: image }).response.item;
+    const snapshot = quote([line(pictured)]);
+    const key = randomUUID();
+    let order = place(snapshot, key).response.order;
+    expect(order.lines[0]?.imageUrl).toBe(image);
+    expect(order.history).toEqual([{ status: 'placed', changedAt: order.createdAt }]);
+    for (const status of ['preparing', 'ready', 'completed'] as const) {
+      order = service.updateStatus(order.id, { expectedRevision: order.revision, status }).response.order;
+      expect(order.history?.at(-1)).toEqual({ status, changedAt: order.updatedAt });
+    }
+    expect(service.updateStatus(order.id, { expectedRevision: order.revision, status: 'completed' }).response.order.history).toHaveLength(4);
+    expect(() => service.updateStatus(order.id, { expectedRevision: 1, status: 'cancelled' })).toThrow();
+    menu.updateItem(pictured.id, { expectedRevision: pictured.revision, imageUrl: '/api/images/salad.jpg', archived: true });
+    expect(place(snapshot, key).response.order).toEqual(order);
+    await stop(); connection = initializeDatabase({ filename }); await start();
+    const retained = getOrder(connection, order.id).order;
+    expect(retained).toEqual(order);
+    expect(retained.history?.map(event => event.status)).toEqual(['placed', 'preparing', 'ready', 'completed']);
+  });
+
+  it('rolls status, history and stream revision back together if the history write fails', () => {
+    const order = place().response.order;
+    connection.sqlite.exec("CREATE TRIGGER fail_history BEFORE INSERT ON order_status_events BEGIN SELECT RAISE(ABORT, 'history unavailable'); END;");
+    expect(() => service.updateStatus(order.id, { expectedRevision: order.revision, status: 'preparing' })).toThrow();
+    expect(getOrder(connection, order.id).order).toEqual(order);
+    expect(readOrdersRevision(connection)).toBe(1);
+  });
+
   it('confirms exact immutable ordered lines, totals, canonical hash, and initial revisions through HTTP', async () => {
     const snapshot = quote([line(open, { openPriceMinor: 115 }), line(fixed), line(open, { quantity: 3, openPriceMinor: 230 })], 20);
     const key = randomUUID();

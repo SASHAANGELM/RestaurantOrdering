@@ -73,6 +73,23 @@ describe('explicit quote review and frozen checkout recovery', () => {
   }
   afterEach(() => { http.verify(); TestBed.resetTestingModule(); vi.useRealTimers(); });
 
+  it('checks and places an order from a single action, preserving kitchen comments and blocking double clicks', () => {
+    const { checkout, cart } = setup(); cart.add(item, '1', '', 'No mustard'); tick();
+    checkout.placeOrder(); checkout.placeOrder();
+    const check = http.expectOne('/api/checkout/quotes'); expect(check.request.body.lines[0].comment).toBe('No mustard');
+    check.flush(quote());
+    const placement = http.expectOne('/api/orders');
+    expect(placement.request.body).toEqual({ quoteId });
+    expect(saved.has(ATTEMPT_STORAGE_KEY)).toBe(true); expect(cart.checkoutLocked()).toBe(true);
+    checkout.placeOrder(); http.expectNone('/api/checkout/quotes');
+    placement.flush(order()); tick(); expect(navigate).toHaveBeenCalledWith(['/orders', orderId]);
+  });
+  it('does not place an order when the cart changes during the single-click check', () => {
+    const { checkout, cart } = setup(); cart.add(item, '1'); tick(); checkout.placeOrder();
+    const check = http.expectOne('/api/checkout/quotes'); cart.edit(cart.lines()[0]!.id, 'comment', 'No mustard');
+    check.flush(quote()); tick(); http.expectNone('/api/orders'); expect(checkout.message()).toContain('changed');
+  });
+
   it('sends observed values and exact open prices, preserving separate lines, discounts and zero totals', () => {
     const { checkout, cart } = setup();
     cart.add(item, '1'); cart.add({ ...item, pricingMode: 'open', priceMinor: null }, '2', '0.25');

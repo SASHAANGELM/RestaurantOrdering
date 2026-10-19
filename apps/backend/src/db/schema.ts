@@ -109,6 +109,8 @@ export const orderLines = sqliteTable('order_lines', {
   itemId: text('item_id').notNull().references(() => menuItems.id, { onDelete: 'restrict' }),
   categoryId: text('category_id').notNull().references(() => categories.id, { onDelete: 'restrict' }),
   itemName: text('item_name').notNull(),
+  imageUrl: text('image_url'),
+  comment: text('comment'),
   categoryName: text('category_name').notNull(),
   itemRevision: integer('item_revision').notNull(),
   pricingMode: text('pricing_mode').$type<PricingMode>().notNull(),
@@ -128,4 +130,17 @@ export const orderLines = sqliteTable('order_lines', {
   check('order_lines_quantity', integerBetween(table.quantity, 1, 99)),
   check('order_lines_total', integerBetween(table.lineTotalMinor, 0)),
   check('order_lines_arithmetic', sql`${table.lineTotalMinor} = ${table.unitPriceMinor} * ${table.quantity}`)
+]);
+
+
+export const orderStatusEvents = sqliteTable('order_status_events', {
+  id: text('id').primaryKey().notNull(),
+  orderId: text('order_id').notNull().references(() => orders.id, { onDelete: 'restrict' }),
+  revision: integer('revision').notNull(),
+  status: text('status').$type<OrderStatus>().notNull(),
+  changedAt: text('changed_at').notNull()
+}, (table) => [
+  uniqueIndex('order_status_events_revision_unique').on(table.orderId, table.revision),
+  check('order_status_events_status', sql`${table.status} IN ('placed', 'preparing', 'ready', 'completed', 'cancelled')`),
+  check('order_status_events_revision', integerBetween(table.revision, 1))
 ]);

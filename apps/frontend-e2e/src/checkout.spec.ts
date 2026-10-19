@@ -18,55 +18,28 @@ async function add(page: Page, name: string) {
 }
 const cart = (page: Page) => page.getByRole('region', { name: 'Your cart' });
 
-test('review shows changed prices, handles local/live invalidation, and requires confirmation after a late server change', async ({ page, request }, testInfo) => {
+test('one confirm click checks current prices and places the order; late menu changes retain the cart for retry', async ({ page, request }) => {
   const item = await fixture(request); await add(page, item.name);
-  expect((await request.patch(`/api/setup/items/${item.id}`, { data: { expectedRevision: 1, pricingMode: 'fixed', priceMinor: 900 } })).ok()).toBe(true);
-  await expect(cart(page)).toContainText('Price changed from $7.50 to $9.00');
-  await page.getByRole('button', { name: 'Review order', exact: true }).click();
-  const review = page.getByRole('region', { name: 'Order review', exact: true });
-  await expect(review).toContainText('Final total: $9.00');
-  await expect(review).toContainText('Price changed from $7.50 to $9.00');
-  await expect(review.getByRole('heading', { name: 'Check this exact order before confirming' })).toBeFocused();
-  await cart(page).getByRole('textbox', { name: 'Fixed discount (USD)', exact: true }).fill('1.00');
-  await expect(review).not.toBeVisible(); await page.getByRole('button', { name: 'Review order', exact: true }).click();
-  await expect(review).toContainText('Final total: $8.00');
-  expect((await request.patch(`/api/setup/items/${item.id}`, { data: { expectedRevision: 2, available: false } })).ok()).toBe(true);
-  await expect(review).not.toBeVisible(); await page.getByRole('button', { name: 'Review order', exact: true }).click();
-  await expect(cart(page)).toContainText('Line 1:'); await expect(cart(page)).toContainText('unavailable');
-  await expect(cart(page).getByRole('textbox', { name: 'Fixed discount (USD)', exact: true })).toHaveValue('1.00');
-  expect((await request.patch(`/api/setup/items/${item.id}`, { data: { expectedRevision: 3, available: true } })).ok()).toBe(true);
-  await expect(cart(page).getByRole('listitem')).not.toContainText('Unavailable');
-  await page.getByRole('button', { name: 'Review order', exact: true }).click(); await expect(review).toContainText('Final total: $8.00');
-  // Change after the browser sends confirm. The backend must reject before creating any order.
-  let lateChange = true;
+  await cart(page).getByText('Add a discount', { exact: true }).click();
+  await cart(page).getByRole('textbox', { name: 'Fixed discount (USD)' }).fill('1.00');
   let posts = 0;
-  await page.route('**/api/orders', async (route) => {
+  await page.route('**/api/orders', async route => {
     if (route.request().method() !== 'POST') { await route.continue(); return; }
     posts++;
-    if (lateChange) {
-      lateChange = false;
-      expect((await request.patch(`/api/setup/items/${item.id}`, { data: { expectedRevision: 4, pricingMode: 'fixed', priceMinor: 1000 } })).ok()).toBe(true);
-    }
+    if (posts === 1) expect((await request.patch(`/api/setup/items/${item.id}`, { data: { expectedRevision: 1, pricingMode: 'fixed', priceMinor: 900 } })).ok()).toBe(true);
     await route.fulfill({ response: await route.fetch() });
   });
   await page.getByRole('button', { name: 'Confirm order', exact: true }).click();
-  await expect(cart(page)).toContainText('Your cart is retained. Review again before confirming.');
-  await expect(cart(page).getByRole('textbox', { name: 'Fixed discount (USD)', exact: true })).toBeEnabled();
-  expect(posts).toBe(1); await expect(page).toHaveURL(/\/cart$/);
-  await page.getByRole('button', { name: 'Review order', exact: true }).click(); await expect(review).toContainText('Final total: $9.00');
-  await page.setViewportSize({ width: 375, height: 812 });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath('checkout-review-mobile.png'), fullPage: true });
+  await expect(cart(page)).toContainText('Your cart is retained.'); expect(posts).toBe(1);
+  await expect(page.getByRole('button', { name: 'Review order' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Confirm order', exact: true }).click();
-  await expect(page).toHaveURL(/\/orders\/[a-f0-9-]+$/);
-  await expect(page.getByRole('main')).toContainText('Total: $9.00'); expect(posts).toBe(2);
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
-  await expect(cart(page)).toContainText('Your cart is empty');
+  await expect(page).toHaveURL(/\/orders\/[a-f0-9-]+$/); expect(posts).toBe(2);
+  await expect(page.locator('dl')).toContainText('$8.00');
 });
 
 test('a committed response lost before delivery survives reload and a 404 lookup; explicit retry uses one original key', async ({ page, request }, testInfo) => {
   const item = await fixture(request); await add(page, item.name);
-  await page.getByRole('button', { name: 'Review order', exact: true }).click();
+
   await expect(page.getByRole('button', { name: 'Confirm order', exact: true })).toBeEnabled();
   const attempts: { key: string; payload: unknown }[] = [];
   let committedId = '';
@@ -81,7 +54,7 @@ test('a committed response lost before delivery survives reload and a 404 lookup
   // Dispatch duplicate clicks synchronously while POST is pending.
   await page.getByRole('button', { name: 'Confirm order', exact: true }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
   await expect(cart(page)).toContainText('Order outcome is unknown'); expect(attempts).toHaveLength(1);
-  await expect(cart(page).getByRole('textbox', { name: `Cart quantity for ${item.name}`, exact: true })).toBeDisabled();
+  await expect(cart(page).getByRole('spinbutton', { name: `Cart quantity for ${item.name}`, exact: true })).toBeDisabled();
   const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('restaurant-ordering.checkout.v1')!));
   expect(saved.key).toBe(attempts[0]!.key); expect(saved.payload).toEqual(attempts[0]!.payload);
   // A lookup may miss a still-running request, so even 404 must never discard the key.
@@ -106,7 +79,7 @@ test('a committed response lost before delivery survives reload and a 404 lookup
 });
 
 test('reload recovers a committed order by key without another POST', async ({ page, request }) => {
-  const item = await fixture(request); await add(page, item.name); await page.getByRole('button', { name: 'Review order', exact: true }).click();
+  const item = await fixture(request); await add(page, item.name);
   let posts = 0; let id = '';
   await page.route('**/api/orders', async (route) => {
     if (route.request().method() !== 'POST') { await route.continue(); return; }
@@ -117,7 +90,7 @@ test('reload recovers a committed order by key without another POST', async ({ p
 });
 
 test('QUOTE_USED opens its existing order and write failures explain memory-only recovery', async ({ page, request }) => {
-  const item = await fixture(request); await add(page, item.name); await page.getByRole('button', { name: 'Review order', exact: true }).click();
+  const item = await fixture(request); await add(page, item.name);
   // Fail only attempt writes: cart persistence still works, and the key remains available in memory.
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;

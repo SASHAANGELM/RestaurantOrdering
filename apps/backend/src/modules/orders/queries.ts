@@ -3,7 +3,7 @@ import {
   orderSchema, orderSummarySchema, type OrderResponse, type OrdersQuery, type OrdersResponse
 } from '@restaurant-ordering/contracts';
 import type { DatabaseConnection } from '../../db/connection';
-import { appState, orderLines, orders } from '../../db/schema';
+import { appState, orderLines, orders, orderStatusEvents } from '../../db/schema';
 import { HttpError } from '../../middleware/errors';
 
 export function orderNotFound(resourceType: 'order' | 'quote' | 'request', resourceId: string): never {
@@ -27,12 +27,14 @@ function toSummary(row: typeof orders.$inferSelect) {
 // Caller owns a read or immediate write transaction so rows and stream revision agree.
 export function readOrderResponse(connection: DatabaseConnection, row: typeof orders.$inferSelect): OrderResponse {
   const lines = connection.db.select().from(orderLines).where(eq(orderLines.orderId, row.id))
-    .orderBy(asc(orderLines.lineIndex)).all().map(({ orderId, lineIndex, ...line }) => {
+    .orderBy(asc(orderLines.lineIndex)).all().map(({ orderId, lineIndex, imageUrl, comment, ...line }) => {
       void orderId;
       void lineIndex;
-      return line;
+      return { ...line, ...(comment ? { comment } : {}), ...(imageUrl ? { imageUrl: imageUrl.replace(/^\/images\//, '/api/images/') } : {}) };
     });
-  return { order: orderSchema.parse({ ...toSummary(row), lines }), ordersRevision: readOrdersRevision(connection) };
+  const history = connection.db.select({ status: orderStatusEvents.status, changedAt: orderStatusEvents.changedAt }).from(orderStatusEvents)
+    .where(eq(orderStatusEvents.orderId, row.id)).orderBy(asc(orderStatusEvents.revision)).all();
+  return { order: orderSchema.parse({ ...toSummary(row), lines, history }), ordersRevision: readOrdersRevision(connection) };
 }
 
 export function getOrder(connection: DatabaseConnection, id: string): OrderResponse {

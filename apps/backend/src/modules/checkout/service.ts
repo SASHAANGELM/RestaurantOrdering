@@ -45,6 +45,7 @@ export function createCheckoutService(connection: DatabaseConnection) {
           }
           const unitPriceMinor = item.pricingMode === 'fixed' ? item.priceMinor : intent.openPriceMinor!;
           lines.push({
+            ...(intent.comment ? { comment: intent.comment } : {}),
             itemId: item.id, categoryId: category.id, itemName: item.name, categoryName: category.name,
             itemRevision: item.revision, pricingMode: item.pricingMode, unitPriceMinor, quantity: intent.quantity,
             lineTotalMinor: calculateLineTotal(unitPriceMinor, intent.quantity)

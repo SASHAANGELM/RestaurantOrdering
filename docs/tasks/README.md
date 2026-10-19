@@ -4,7 +4,7 @@ Read this index first every time you need the next task or a list of all tasks.
 Then open the relevant task file for its scope, acceptance criteria, completion
 record, and verification results; read dependency files only as needed.
 
-**18 complete.**
+**20 complete.**
 
 | ID | Task | Status | Depends on |
 | --- | --- | --- | --- |
@@ -26,6 +26,8 @@ record, and verification results; read dependency files only as needed.
 | T16 | [Complete README and handoff](t16-complete-readme-and-handoff.md) | Complete | [T15](t15-complete-reliability-performance-and-ci-verification.md) |
 | T17 | [Refresh menu, cart, and catalog management](t17-refresh-menu-cart-and-catalog-management.md) | Complete | [T03](t03-implement-schema-migrations-and-seeds.md), [T10](t10-implement-setup-ui.md), [T11](t11-implement-menu-cart-and-large-menu-behavior.md), [T12](t12-implement-review-confirmation-and-recovery-ui.md) |
 | T18 | [Improve ordering, media delivery, and connection feedback](t18-improve-ordering-media-delivery-and-connection-feedback.md) | Complete | [T17](t17-refresh-menu-cart-and-catalog-management.md) |
+| T19 | [Refine ordering controls and order history](t19-refine-ordering-controls-and-order-history.md) | Complete | T18 |
+| T20 | [Simplify local browsing and checkout](t20-simplify-local-browsing-and-checkout.md) | Complete | T19 |
 
 ## Selecting work
 

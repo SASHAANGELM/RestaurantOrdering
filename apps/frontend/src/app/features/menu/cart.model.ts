@@ -1,6 +1,6 @@
 import * as z from 'zod';
 import {
-  calculateLineTotal, calculateTotals, idSchema, MAX_CART_LINES, menuItemSchema,
+  calculateLineTotal, calculateTotals, kitchenCommentSchema, idSchema, MAX_CART_LINES, menuItemSchema,
   parseDecimalMinor, parseUnitPriceMinor, quantitySchema, type MenuItem, type ResolvedItem
 } from '@restaurant-ordering/contracts';
 
@@ -8,7 +8,7 @@ export const CART_STORAGE_KEY = 'restaurant-ordering.cart.v1';
 const draftSchema = z.string().max(32);
 export const storedCartSchema = z.strictObject({
   version: z.literal(1),
-  lines: z.array(z.strictObject({ id: idSchema, item: menuItemSchema, quantityText: draftSchema, priceText: draftSchema })).max(MAX_CART_LINES)
+  lines: z.array(z.strictObject({ id: idSchema, item: menuItemSchema, comment: kitchenCommentSchema.optional(), quantityText: draftSchema, priceText: draftSchema })).max(MAX_CART_LINES)
     .refine((lines) => new Set(lines.map((line) => line.id)).size === lines.length, 'Duplicate cart line IDs.'),
   discountText: draftSchema
 });
@@ -53,6 +53,6 @@ export function entryChanges(line: CartEntry, resolved?: ResolvedItem): string[]
   }
   return changes;
 }
-export function newEntry(item: MenuItem, quantityText: string, priceText: string): CartEntry {
-  return { id: crypto.randomUUID(), item, quantityText, priceText };
+export function newEntry(item: MenuItem, quantityText: string, priceText: string, comment = ''): CartEntry {
+  return { id: crypto.randomUUID(), item, quantityText, priceText, ...(comment ? { comment } : {}) };
 }

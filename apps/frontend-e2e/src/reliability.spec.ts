@@ -25,12 +25,7 @@ test('connected browsers repair committed omitted broadcasts by periodic sync an
   const timing: Record<string, number> = {};
   try {
     await Promise.all([page.goto('/menu'), staff.goto(`/orders/${order.id}`)]);
-    const searchLoaded = page.waitForResponse((response) => {
-      const url = new URL(response.url());
-      return url.pathname === '/api/menu/items' && url.searchParams.get('search') === name && response.ok();
-    });
     await page.getByRole('textbox', { name: 'Search menu', exact: true }).fill(name);
-    await searchLoaded;
     const row = page.getByRole('listitem').filter({ hasText: name });
     await expect(row).toContainText('$4.00');
     await expect(staff.getByText('Status: Placed', { exact: true })).toBeVisible();

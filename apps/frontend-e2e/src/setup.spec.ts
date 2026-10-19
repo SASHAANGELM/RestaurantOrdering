@@ -15,6 +15,7 @@ async function fixture(request: APIRequestContext, prefix: string) {
 async function select(page: Page, label: string, option: string) {
   await page.getByRole('combobox', { name: label, exact: true }).click();
   await page.getByRole('option', { name: option, exact: true }).click();
+  await expect(page.getByRole('listbox')).not.toBeVisible();
 }
 async function filter(page: Page, search: string) {
   await page.getByRole('textbox', { name: 'Search items', exact: true }).fill(search);
@@ -36,7 +37,8 @@ test('Setup forms publish live changes, omit fixed prices for open pricing, and 
     await dialog.getByRole('spinbutton', { name: 'Sort order' }).fill('-1000');
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(dialog).not.toBeVisible();
-    await page.getByRole('link', { name: 'Items', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Settings' }).click();
+    await page.getByRole('link', { name: /Items.*Manage items/ }).click();
     await page.getByRole('button', { name: 'Add item', exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Add item', exact: true });
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(itemName);
@@ -51,6 +53,7 @@ test('Setup forms publish live changes, omit fixed prices for open pricing, and 
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     const item = itemMutationResponseSchema.parse(await (await created).json()).item;
     await expect(dialog).not.toBeVisible();
+    await customer.getByRole('textbox', { name: 'Search menu', exact: true }).fill(itemName);
     let customerRow = customer.getByRole('listitem').filter({ hasText: itemName });
     await expect(customerRow).toContainText('$8.25');
     await filter(page, itemName);
@@ -58,13 +61,17 @@ test('Setup forms publish live changes, omit fixed prices for open pricing, and 
     await edit.click();
     dialog = page.getByRole('dialog', { name: 'Edit item', exact: true });
     await dialog.getByRole('textbox', { name: 'Price (USD)' }).fill('6.40');
-    await dialog.getByRole('checkbox', { name: 'Available for ordering' }).uncheck();
+    await expect(dialog.getByRole('switch', { name: 'Available for ordering' })).toBeChecked();
+    await dialog.getByRole('switch', { name: 'Available for ordering' }).click();
+    await expect(dialog.getByRole('switch', { name: 'Available for ordering' })).not.toBeChecked();
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(customerRow).toContainText('$6.40');
     await expect(customerRow).toContainText('Unavailable');
     await edit.click();
     await select(page, 'Pricing', 'Open price');
-    await dialog.getByRole('checkbox', { name: 'Available for ordering' }).check();
+    await expect(dialog.getByRole('switch', { name: 'Available for ordering' })).not.toBeChecked();
+    await dialog.getByRole('switch', { name: 'Available for ordering' }).click();
+    await expect(dialog.getByRole('switch', { name: 'Available for ordering' })).toBeChecked();
     const openRequest = page.waitForRequest((r) => r.url().endsWith(`/api/setup/items/${item.id}`) && r.method() === 'PATCH');
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     const payload: unknown = (await openRequest).postDataJSON();
@@ -102,9 +109,11 @@ test('Setup forms publish live changes, omit fixed prices for open pricing, and 
     const child = itemMutationResponseSchema.parse(await (await request.post('/api/setup/items', {
       data: { name: childName, categoryId: item.categoryId, available: true, pricingMode: 'fixed', priceMinor: 100 }
     })).json()).item;
+    await customer.getByRole('textbox', { name: 'Search menu', exact: true }).fill(childName);
     customerRow = customer.getByRole('listitem').filter({ hasText: childName });
     await expect(customerRow).toBeVisible();
-    await page.getByRole('link', { name: 'Categories', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Settings' }).click();
+    await page.getByRole('link', { name: /Categories.*Manage categories/ }).click();
     await page.getByRole('button', { name: `Edit category ${categoryName}`, exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Edit category', exact: true });
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(`Renamed ${categoryName}`);
@@ -193,13 +202,15 @@ test('Setup lists page categories and request bounded, searchable category-filte
   await filter(page, `${name} 00`);
   await expect(section.getByRole('listitem')).toHaveCount(1);
   await expect(section).toContainText('Page 1');
-  await page.getByRole('link', { name: 'Categories', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Settings' }).click();
+    await page.getByRole('link', { name: /Categories.*Manage categories/ }).click();
   const categories = page.getByRole('region', { name: 'Categories', exact: true });
   await expect(categories.getByRole('listitem')).toHaveCount(10);
   const firstCategory = await categories.getByRole('listitem').first().textContent();
   await page.getByLabel('Category pages', { exact: true }).getByRole('button', { name: 'Next page' }).click();
   await expect(categories.getByRole('listitem').first()).not.toHaveText(firstCategory ?? '');
-  await page.getByRole('link', { name: 'Items', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Settings' }).click();
+    await page.getByRole('link', { name: /Items.*Manage items/ }).click();
   await page.screenshot({ path: testInfo.outputPath('setup-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 375, height: 812 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

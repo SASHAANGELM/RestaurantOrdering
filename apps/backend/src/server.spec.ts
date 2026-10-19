@@ -40,7 +40,7 @@ describe('backend startup and shutdown on isolated databases', () => {
       const inspection = openDatabase(config.databasePath);
       try {
         expect(inspection.sqlite.prepare('SELECT count(*) AS count FROM menu_items').get()).toEqual({ count: 36 });
-        expect(inspection.sqlite.prepare('SELECT count(*) AS count FROM __drizzle_migrations').get()).toEqual({ count: 2 });
+        expect(inspection.sqlite.prepare('SELECT count(*) AS count FROM __drizzle_migrations').get()).toEqual({ count: 4 });
       } finally { inspection.close(); }
       return { close: async () => undefined, forceClose: () => undefined };
     });

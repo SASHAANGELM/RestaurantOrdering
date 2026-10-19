@@ -1,3 +1,4 @@
+import { BusyButton } from '../../shared/busy-button';
 import { CurrencyPipe, DatePipe, TitleCasePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MatButton } from '@angular/material/button';
@@ -12,14 +13,14 @@ import { OrdersStore } from './orders.store';
 @Component({
   selector: 'app-orders-page',
   providers: [OrdersStore],
-  imports: [CurrencyPipe, DatePipe, TitleCasePipe, MatButton, MatFormFieldModule, MatPaginator, MatSelectModule, RouterLink, LoadState],
+  imports: [BusyButton, CurrencyPipe, DatePipe, TitleCasePipe, MatButton, MatFormFieldModule, MatPaginator, MatSelectModule, RouterLink, LoadState],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`mat-form-field { margin-top: 1rem; } mat-paginator { background: transparent; }`],
   template: `
-    <div class="page-heading"><div><p class="eyebrow">From kitchen to table</p><h1 tabindex="-1">Orders</h1></div>
-      <button mat-stroked-button (click)="store.reload()"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh orders</button></div>
+    <div class="page-heading"><div><h1 tabindex="-1">Orders</h1></div>
+      <button [appBusy]="store.orders.loading()" mat-stroked-button (click)="store.reload()"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh orders</button></div>
     <p class="muted">Open an order to view its details and update its kitchen status.</p>
-    <mat-form-field><mat-label><i class="ti ti-filter" aria-hidden="true"></i> Filter by status</mat-label><mat-select [value]="store.query().status ?? ''" (selectionChange)="store.filter($event.value || undefined)">
+    <mat-form-field appearance="outline"><mat-label><i class="ti ti-filter" aria-hidden="true"></i> Filter by status</mat-label><mat-select [value]="store.query().status ?? ''" (selectionChange)="store.filter($event.value || undefined)">
       <mat-option value="">All statuses</mat-option>
       @for (status of statuses; track status) { <mat-option [value]="status">{{ status | titlecase }}</mat-option> }
     </mat-select></mat-form-field>

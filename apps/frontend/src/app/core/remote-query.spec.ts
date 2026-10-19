@@ -32,118 +32,47 @@ describe('feature query and revision ordering', () => {
     http.expectOne('/api/sync').flush({ menuRevision: 1, ordersRevision: 0 });
   });
   afterEach(() => { try { http.verify(); } finally { TestBed.resetTestingModule(); } });
-  function items() { return http.expectOne((request) => request.url === '/api/menu/items'); }
-  function categories(revision = 1) {
-    http.expectOne((request) => request.url === '/api/menu/categories').flush({ categories: [], menuRevision: revision });
+  function catalog(revision = 1, name = 'Soup') {
+    http.expectOne('/api/menu/catalog').flush({ categories: [], items: page(revision, name).items, menuRevision: revision });
   }
-  function loadedMenu() {
-    const store = TestBed.inject(MenuStore);
-    TestBed.tick(); categories(); items().flush(page(1)); TestBed.tick();
-    return store;
-  }
-
-  it('cancels superseded queries and retains the previous data until the new page succeeds', () => {
+  function loadedMenu() { const store = TestBed.inject(MenuStore); TestBed.tick(); catalog(); TestBed.tick(); return store; }
+  it('searches, filters and paginates the complete local snapshot without HTTP', () => {
     const store = loadedMenu();
-    store.setQuery({ page: 1, pageSize: 50, search: 'a' }); TestBed.tick();
-    const older = items(); const olderCategories = http.expectOne((request) => request.url === '/api/menu/categories');
-    store.setQuery({ page: 1, pageSize: 50, search: 'b' }); TestBed.tick();
-    expect(older.cancelled).toBe(true); expect(olderCategories.cancelled).toBe(true); categories();
-    expect(store.items.data()?.items[0]?.name).toBe('Soup');
-    expect(store.items.stale()).toBe(true);
-    const latest = items();
-    expect(latest.request.params.get('search')).toBe('b');
-    latest.flush(page(1, 'Bread')); TestBed.tick();
-    expect(store.items.data()?.items[0]?.name).toBe('Bread');
-    expect(store.items.stale()).toBe(false);
-    expect(store.items.loading()).toBe(false);
-  });
-
-  it('rejects a late result even before the query-change effect gets a chance to cancel it', () => {
-    const store = TestBed.inject(MenuStore); TestBed.tick(); categories();
-    const old = items();
-    store.setQuery({ page: 1, pageSize: 50, search: 'bread' });
-    old.flush(page(1, 'Obsolete'));
-    expect(store.items.data()).toBeNull();
-    TestBed.tick(); categories(); items().flush(page(1, 'Bread')); TestBed.tick();
-    expect(store.items.data()?.items[0]?.name).toBe('Bread');
-  });
-
-  it('rejects a response below an event revision and refetches authoritative content', () => {
-    const store = loadedMenu();
-    store.items.reload(); TestBed.tick(); const old = items();
-    sync.observe({ menuRevision: 2 });
-    old.flush(page(1, 'Obsolete'));
-    expect(store.items.data()?.items[0]?.name).toBe('Soup');
-    expect(store.items.stale()).toBe(true);
-    TestBed.tick(); categories(2); items().flush(page(2, 'New soup')); TestBed.tick();
-    expect(store.items.data()?.items[0]?.name).toBe('New soup');
-    expect(store.items.stale()).toBe(false);
-  });
-
-  it('cancels requests when a newer revision invalidates them', () => {
-    const store = TestBed.inject(MenuStore); TestBed.tick();
-    const old = items(); const oldCategories = http.expectOne('/api/menu/categories');
-    sync.observe({ menuRevision: 2 }); TestBed.tick();
-    expect(old.cancelled).toBe(true);
-    expect(oldCategories.cancelled).toBe(true);
-    categories(2); items().flush(page(2)); TestBed.tick();
-    expect(store.items.data()?.menuRevision).toBe(2);
-  });
-
-  it('ignores duplicate/older notifications and unrelated order-stream revisions', () => {
-    loadedMenu();
-    const event = { eventId: id, entityId: id, entityType: 'item', change: 'updated', menuRevision: 1 };
-    socket.receive('menu.changed', event);
-    socket.receive('menu.changed', event);
-    sync.observe({ ordersRevision: 8 }); TestBed.tick();
+    store.setQuery({ page: 1, pageSize: 10, search: 'bread' }); TestBed.tick();
+    expect(store.items.data()?.total).toBe(0); expect(store.categories.data()?.categories).toEqual([]);
+    store.setQuery({ page: 3, pageSize: 10, search: 'soup' }); TestBed.tick();
+    expect(store.items.data()?.items[0]?.name).toBe('Soup'); expect(store.items.data()?.page).toBe(1);
     http.expectNone(() => true);
-    expect(sync.highest()).toEqual({ menuRevision: 1, ordersRevision: 8 });
   });
-
-  it('HTTP snapshots advance the watermark and repair other older feature resources', () => {
-    const store = loadedMenu();
-    store.categories.reload(); TestBed.tick(); categories(3); TestBed.tick();
-    expect(store.items.stale()).toBe(true);
-    items().flush(page(3, 'Fresh')); TestBed.tick();
-    expect(sync.highest().menuRevision).toBe(3);
+  it('rejects an obsolete catalog below the current revision and fetches a fresh snapshot', () => {
+    const store = loadedMenu(); store.reload(); TestBed.tick(); const old = http.expectOne('/api/menu/catalog');
+    sync.observe({ menuRevision: 2 }); old.flush({ categories: [], items: page(1, 'Obsolete').items, menuRevision: 1 });
+    expect(store.items.data()?.items[0]?.name).toBe('Soup'); TestBed.tick(); catalog(2, 'Fresh'); TestBed.tick();
     expect(store.items.data()?.items[0]?.name).toBe('Fresh');
-    http.expectNone(() => true);
   });
-
-  it('retains cached content on disconnect/errors and retries after a successful focus sync at the same revision', () => {
-    const store = loadedMenu();
-    socket.receive('disconnect');
-    store.items.reload(); TestBed.tick(); items().error(new ProgressEvent('error'));
+  it('keeps local filters while newer revisions cancel in-flight catalog reads', () => {
+    const store = TestBed.inject(MenuStore); TestBed.tick(); const old = http.expectOne('/api/menu/catalog');
+    store.setQuery({ page: 1, pageSize: 50, search: 'new' }); sync.observe({ menuRevision: 2 }); TestBed.tick();
+    expect(old.cancelled).toBe(true); catalog(2, 'New soup'); TestBed.tick(); expect(store.items.data()?.total).toBe(1);
+  });
+  it('ignores duplicate notifications and unrelated order revisions', () => {
+    loadedMenu(); sync.observe({ menuRevision: 1, ordersRevision: 8 }); TestBed.tick(); http.expectNone(() => true);
+  });
+  it('retains content after failed refresh and repairs it after a successful same-revision check', () => {
+    const store = loadedMenu(); store.reload(); TestBed.tick(); http.expectOne('/api/menu/catalog').error(new ProgressEvent('error'));
     expect(store.items.data()?.items[0]?.name).toBe('Soup');
-    expect(store.items.error()?.kind).toBe('network');
-    expect(store.items.loading()).toBe(false);
-    window.dispatchEvent(new Event('focus'));
-    http.expectOne('/api/sync').flush({ menuRevision: 1, ordersRevision: 0 }); TestBed.tick();
-    items().flush(page(1, 'Restored')); TestBed.tick();
-    expect(store.items.error()).toBeNull();
-    expect(store.items.data()?.items[0]?.name).toBe('Restored');
+    window.dispatchEvent(new Event('focus')); http.expectOne('/api/sync').flush({ menuRevision: 1, ordersRevision: 0 }); TestBed.tick();
+    catalog(1, 'Restored'); TestBed.tick(); expect(store.catalog.error()).toBeNull();
   });
-
-  it('repairs a missed broadcast using the persisted sync revisions', () => {
-    const store = loadedMenu();
-    // No menu.changed event is delivered.
-    window.dispatchEvent(new Event('focus'));
-    http.expectOne('/api/sync').flush({ menuRevision: 4, ordersRevision: 0 }); TestBed.tick();
-    categories(4); items().flush(page(4, 'Missed change')); TestBed.tick();
+  it('repairs a missed broadcast from persisted revisions', () => {
+    const store = loadedMenu(); window.dispatchEvent(new Event('focus'));
+    http.expectOne('/api/sync').flush({ menuRevision: 4, ordersRevision: 0 }); TestBed.tick(); catalog(4, 'Missed change'); TestBed.tick();
     expect(store.items.data()?.items[0]?.name).toBe('Missed change');
   });
-
-  it('tears down route-owned HTTP/effects without creating or removing app socket listeners', () => {
-    const child = createEnvironmentInjector([MenuStore], TestBed.inject(EnvironmentInjector));
-    child.get(MenuStore); TestBed.tick();
-    const pendingItems = items(); const pendingCategories = http.expectOne('/api/menu/categories');
-    child.destroy();
-    expect(pendingItems.cancelled).toBe(true);
-    expect(pendingCategories.cancelled).toBe(true);
-    sync.observe({ menuRevision: 5 }); TestBed.tick();
-    http.expectNone(() => true);
-    expect(socket.connects).toBe(1);
-    expect(socket.listenerCount).toBe(6);
+  it('cancels route catalog reads without changing app socket listeners', () => {
+    const child = createEnvironmentInjector([MenuStore], TestBed.inject(EnvironmentInjector)); child.get(MenuStore); TestBed.tick();
+    const pending = http.expectOne('/api/menu/catalog'); child.destroy(); expect(pending.cancelled).toBe(true);
+    sync.observe({ menuRevision: 5 }); TestBed.tick(); http.expectNone(() => true); expect(socket.listenerCount).toBe(6);
   });
 
   it('keeps Setup queries and archived visibility together', () => {

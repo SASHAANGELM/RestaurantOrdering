@@ -1,8 +1,9 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Subject } from 'rxjs';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialog } from '@angular/material/dialog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MenuItem } from '@restaurant-ordering/contracts';
 import { RealtimeSync } from '../../core/realtime-sync';
@@ -14,10 +15,12 @@ const item: MenuItem = { id: '22222222-2222-4222-8222-222222222222', categoryId:
   createdAt: '2026-10-18T12:00:00.000Z', updatedAt: '2026-10-18T12:00:00.000Z' };
 
 describe('open-price dialog', () => {
+  let confirmation: Subject<boolean>;
   let http: HttpTestingController;
   function setup(menuItem: MenuItem = item) {
-    const close = vi.fn();
+    const close = vi.fn(); confirmation = new Subject<boolean>();
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
+      { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => confirmation }) } },
       { provide: MAT_DIALOG_DATA, useValue: { item: menuItem, quantity: '2' } }, { provide: MatDialogRef, useValue: { close } },
       { provide: CART_STORAGE, useValue: () => ({ getItem: () => null, setItem: () => undefined }) },
       { provide: RealtimeSync, useValue: { highest: signal({ menuRevision: 0, ordersRevision: 0 }), successfulChecks: signal(0), observe: vi.fn() } }] });
@@ -37,7 +40,7 @@ describe('open-price dialog', () => {
     expect(reopened.componentInstance.quantity.value).toBe('3');
     reopened.componentInstance.quantity.setValue('5'); reopened.componentInstance.add();
     expect(cart.lines()).toHaveLength(1); expect(cart.lines()[0]?.quantityText).toBe('5');
-    reopened.componentInstance.remove(); expect(cart.lines()).toEqual([]);
+    reopened.componentInstance.remove(); expect(cart.lines()).toHaveLength(1); confirmation.next(true); expect(cart.lines()).toEqual([]);
   });
 
   it('can create distinct open-price lines and select their quantities for editing', () => {
@@ -47,7 +50,7 @@ describe('open-price dialog', () => {
     expect(reopened.componentInstance.price.value).toBe('1.00'); expect(reopened.componentInstance.quantity.value).toBe('2');
     reopened.componentInstance.select(''); reopened.componentInstance.price.setValue('2.00'); reopened.componentInstance.quantity.setValue('3'); reopened.componentInstance.add();
     expect(cart.lines()).toHaveLength(2); reopened.componentInstance.select(cart.lines()[0]!.id);
-    expect(reopened.componentInstance.quantity.value).toBe('2'); reopened.componentInstance.remove();
+    expect(reopened.componentInstance.quantity.value).toBe('2'); reopened.componentInstance.remove(); confirmation.next(true);
     expect(cart.lines()).toHaveLength(1); expect(cart.lines()[0]?.priceText).toBe('2.00');
   });
 
