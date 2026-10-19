@@ -49,6 +49,8 @@ import { SetupStore } from './setup.store';
         <li><div><strong>{{ category.name }}</strong><p class="muted">Sort order: {{ category.sortOrder }} · {{ category.archivedAt ? 'Archived' : 'Active' }}</p></div>
           @if (!category.archivedAt) {
             <div class="actions"><button mat-button [attr.aria-label]="'Edit category ' + category.name" (click)="edit('category', category)"><i class="ti ti-edit" aria-hidden="true"></i> Edit</button></div>
+          } @else {
+            <div class="actions"><button mat-button [attr.aria-label]="'Restore category ' + category.name" (click)="edit('category', category, true)"><i class="ti ti-restore" aria-hidden="true"></i> Restore</button></div>
           }
         </li>
       } @empty { <li>No categories to display.</li> }</ul>
@@ -80,6 +82,8 @@ import { SetupStore } from './setup.store';
           @if (!item.archivedAt) {
             <div class="actions"><span class="availability-control" [class.saving]="availabilityBusy() === item.id" [attr.aria-busy]="availabilityBusy() === item.id"><mat-slide-toggle [checked]="item.available" [disabled]="availabilityBusy() !== null" [aria-label]="'Available ' + item.name" (change)="setAvailability(item, $event)">Available</mat-slide-toggle>@if (availabilityBusy() === item.id) { <span class="sr-only" role="status">Saving availability…</span> }</span>
               <button mat-button [attr.aria-label]="'Edit item ' + item.name" (click)="edit('item', item)"><i class="ti ti-edit" aria-hidden="true"></i> Edit</button></div>
+          } @else {
+            <div class="actions"><button mat-button [attr.aria-label]="'Restore item ' + item.name" (click)="edit('item', item, true)"><i class="ti ti-restore" aria-hidden="true"></i> Restore</button></div>
           }</li>
         } @empty { <li>No items match these filters.</li> }</ul>
         <mat-paginator aria-label="Item pages" [length]="page.total" [pageSize]="store.query().pageSize" [pageIndex]="store.query().page - 1"
@@ -136,11 +140,11 @@ export class CatalogPage {
   }
   firstPage() { this.store.setQuery({ ...this.store.query(), page: 1 }); }
   itemPage(event: PageEvent) { this.store.setQuery({ ...this.store.query(), page: event.pageIndex + 1, pageSize: event.pageSize }); }
-  edit(kind: 'category' | 'item', entity?: Category | MenuItem) {
+  edit(kind: 'category' | 'item', entity?: Category | MenuItem, restore = false) {
     if (this.dialog.getDialogById('setup-editor')) return;
     this.dialog.open(SetupEditor, { id: 'setup-editor', ariaLabelledBy: 'setup-editor-title', width: '36rem', maxWidth: 'calc(100vw - 2rem)',
       autoFocus: 'first-tabbable', restoreFocus: true,
-      data: { kind, entity, categories: this.store.categories.data()?.categories ?? [] }
+      data: { kind, entity, restore, categories: this.store.categories.data()?.categories ?? [] }
     }).afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((saved: boolean | undefined) => { if (saved) this.store.reload(); });
   }
 }

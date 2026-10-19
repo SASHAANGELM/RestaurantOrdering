@@ -57,7 +57,7 @@ export function createMenuService(connection: DatabaseConnection) {
         checkRevision('category', id, input.expectedRevision, current.revision);
         const now = new Date().toISOString();
         const changes = { name: input.name ?? current.name, sortOrder: input.sortOrder ?? current.sortOrder,
-          archivedAt: input.archived ? current.archivedAt ?? now : current.archivedAt };
+          archivedAt: input.archived === false ? null : input.archived ? current.archivedAt ?? now : current.archivedAt };
         const changed = changes.name !== current.name || changes.sortOrder !== current.sortOrder || changes.archivedAt !== current.archivedAt;
         const row = changed ? connection.db.update(categories).set({ ...changes, revision: current.revision + 1, updatedAt: now })
           .where(eq(categories.id, id)).returning().get()! : current;
@@ -88,7 +88,7 @@ export function createMenuService(connection: DatabaseConnection) {
           available: input.available ?? current.available,
           pricingMode: 'pricingMode' in input ? input.pricingMode : current.pricingMode,
           priceMinor: 'pricingMode' in input ? input.pricingMode === 'fixed' ? input.priceMinor : null : current.priceMinor,
-          archivedAt: input.archived ? current.archivedAt ?? now : current.archivedAt
+          archivedAt: input.archived === false ? null : input.archived ? current.archivedAt ?? now : current.archivedAt
         };
         const changed = (Object.keys(changes) as (keyof typeof changes)[]).some((key) => changes[key] !== current[key]);
         const row = changed ? connection.db.update(menuItems).set({ ...changes, revision: current.revision + 1, updatedAt: now })

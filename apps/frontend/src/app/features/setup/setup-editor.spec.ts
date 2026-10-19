@@ -62,6 +62,66 @@ describe('Setup editor', () => {
     expect(request.request.body.imageUrl).toBeNull(); request.flush({ item: { ...item, revision: 2 }, menuRevision: 2 });
   });
 
+  it.each(['category', 'item'] as const)('confirms %s restoration without sending edits, and blocks duplicate submission', (kind) => {
+    const entity = { ...(kind === 'category' ? category : item), archivedAt: timestamp, revision: 2 };
+    const { component, fixture } = editor({ kind, entity, restore: true });
+    expect(component.title).toBe(`Restore ${kind}`);
+    expect(fixture.nativeElement.querySelector('form')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain(kind === 'category' ? 'Individually archived items stay archived' : 'availability setting is preserved');
+    http.expectNone(() => true);
+    component.form.controls.name.setValue('Must not be sent');
+    component.save(); component.save();
+    expect(component.busy()).toBe(true); expect(dialog.disableClose).toBe(true);
+    const request = http.expectOne(`/api/setup/${kind === 'category' ? 'categories' : 'items'}/${entity.id}`);
+    expect(request.request.body).toEqual({ expectedRevision: 2, archived: false });
+    request.flush({ [kind]: { ...entity, archivedAt: null, revision: 3 }, menuRevision: 5 });
+    expect(sync.observe).toHaveBeenCalledWith({ menuRevision: 5 });
+    expect(dialog.close).toHaveBeenCalledWith(true);
+  });
+
+  it('explains archived parent and unavailable item restrictions, and allows explicit restore retry after network failure', () => {
+    const { component, fixture } = editor({ restore: true, entity: { ...item, archivedAt: timestamp, available: false },
+      categories: [{ ...category, archivedAt: timestamp }] });
+    expect(fixture.nativeElement.textContent).toContain("This item's category is archived");
+    expect(fixture.nativeElement.textContent).toContain('This item is unavailable');
+    component.save();
+    http.expectOne(`/api/setup/items/${itemId}`).error(new ProgressEvent('error'));
+    expect(component.busy()).toBe(false); expect(dialog.disableClose).toBe(false);
+    expect(component.message()).toContain('Cannot reach');
+    component.save();
+    const request = http.expectOne(`/api/setup/items/${itemId}`);
+    expect(request.request.body).toEqual({ expectedRevision: 1, archived: false });
+    request.flush({ item: { ...item, available: false, revision: 2 }, menuRevision: 5 });
+    expect(dialog.close).toHaveBeenCalledWith(true);
+  });
+
+  it('requires authoritative conflict recovery before restoring with the latest revision', () => {
+    const { component } = editor({ restore: true, entity: { ...item, archivedAt: timestamp } });
+    component.save(); conflict();
+    component.save(); http.expectNone(() => true);
+    component.reloadLatest();
+    http.expectOne('/api/setup/categories?includeArchived=true').flush({ categories: [category], menuRevision: 4 });
+    http.expectOne('/api/menu/resolve').flush({ items: [{ itemId, state: 'archived', item: { ...item, archivedAt: timestamp, revision: 2 }, category }], menuRevision: 4 });
+    component.save();
+    const request = http.expectOne(`/api/setup/items/${itemId}`);
+    expect(request.request.body).toEqual({ expectedRevision: 2, archived: false });
+    request.flush({ item: { ...item, revision: 3 }, menuRevision: 5 });
+    expect(dialog.close).toHaveBeenCalledWith(true);
+  });
+
+  it('disables restoration when a conflict reload shows another user already restored the record', () => {
+    const { component, fixture } = editor({ restore: true, entity: { ...item, archivedAt: timestamp } });
+    component.save(); conflict(); component.reloadLatest();
+    http.expectOne('/api/setup/categories?includeArchived=true').flush({ categories: [category], menuRevision: 4 });
+    http.expectOne('/api/menu/resolve').flush({ items: [{ itemId, state: 'available', item: { ...item, revision: 2 }, category }], menuRevision: 4 });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('This record is already active');
+    const restore = [...fixture.nativeElement.querySelectorAll('button')].find((button) => (button as HTMLButtonElement).textContent?.trim() === 'Restore') as HTMLButtonElement;
+    expect(restore.disabled).toBe(true);
+    component.save(); http.expectNone(() => true);
+    expect(dialog.close).not.toHaveBeenCalled();
+  });
+
   it('parses exact fixed cents, keeps the opening revision, and blocks duplicate submissions', () => {
     const { component } = editor();
     component.form.patchValue({ name: 'Edited soup', price: '0.29' });

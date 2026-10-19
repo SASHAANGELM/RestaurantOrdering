@@ -76,9 +76,9 @@ Both health endpoints disable caching. Liveness returns `{ status: 'live' }` wit
 | `GET /api/setup/categories?includeArchived=` | Configuration category list with entity revisions; hide archived categories by default. |
 | `GET /api/setup/items?...` | Paginated configuration view including unavailable items; hide archived records by default. |
 | `POST /api/setup/categories` | Create a category from name/sort order; 201. |
-| `PATCH /api/setup/categories/:id` | Edit or archive with `{ expectedRevision, ...changes }`. |
+| `PATCH /api/setup/categories/:id` | Edit, archive (`archived: true`) or restore (`archived: false`) with `{ expectedRevision, ...changes }`. |
 | `POST /api/setup/items` | Create with category, name, pricing mode/price, availability; 201. |
-| `PATCH /api/setup/items/:id` | Edit price/mode/availability/category/name or archive, with `expectedRevision`. |
+| `PATCH /api/setup/items/:id` | Edit price/mode/availability/category/name, archive (`archived: true`) or restore (`archived: false`), with `expectedRevision`. |
 | `POST /api/checkout/quotes` | Validate cart and discount; 201 with authoritative review snapshot or actionable problems. |
 | `POST /api/orders` | Confirm `{ quoteId }` with `Idempotency-Key` header; 201 first creation, 200 replay of the same request. |
 | `GET /api/orders/by-request/:idempotencyKey` | Recover committed result by opaque UUID key; 200 existing order or 404 not found yet. Register route before `/:id`. |
@@ -87,6 +87,8 @@ Both health endpoints disable caching. Liveness returns `{ status: 'live' }` wit
 | `PATCH /api/orders/:id/status` | `{ status, expectedRevision }`; validate transition atomically and return updated order. |
 
 All menu configuration writes increment the changed entity revision and the global menu revision in the same transaction. Failed/no-op writes do not advance revisions. Concurrent Setup edits return `409 REVISION_CONFLICT`; retain the user's form and offer reload/reapply. Reject items assigned to archived categories. Category archival immediately makes its children unorderable without rewriting historical orders.
+
+T21 adds restoration by clearing the existing nullable `archivedAt` field. Omitted `archived` preserves archive state; only boolean values are accepted. Restoring a category does not change its children or their revisions: individually archived items stay archived, and unavailable items stay unavailable. Restoring an item under an archived category is allowed when no category reassignment is requested, but the category still blocks ordering. Repeated restores at the current revision are no-ops; stale revisions still conflict. Actual restores emit the existing `menu.changed` event with `change: 'updated'` after commit. No migration or new event type is required, and historical orders are unchanged.
 
 Read each list/snapshot and its associated stream revision in one short database read transaction. This prevents a revision from describing newer state than the returned data. Cross-endpoint category/item snapshots may differ; if revisions differ, re-fetch to converge rather than accepting an older page over a newer revision.
 

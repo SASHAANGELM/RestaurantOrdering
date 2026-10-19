@@ -18,6 +18,8 @@ An edit in Setup is visible in another browser's Menu without reloading; archiva
 
 Completed 2026-10-18. See [verification results](#verification). Added category/item forms, bounded item pagination/search/category filters, category pagination, explicit archive confirmations, retained error drafts, and revision-conflict reload/review. Added 18 frontend tests and three Chromium scenarios proving two-browser live editing, open-price payloads, archive eligibility, concurrent conflicts, manual retry, pagination, and mobile/focus behavior. Uncached `pnpm check` passed with 43 frontend, 320 backend, and 75 contract tests and both production builds; all eight Chromium tests passed. The frontend build succeeds with a 9.86 kB initial-bundle warning above the existing 550 kB warning threshold; the 600 kB error budget is unchanged.
 
+Follow-up: [T21](t21-restore-archived-categories-and-items.md) adds category/item restoration and supersedes the original one-way archival limitation described in the historical verification below.
+
 ## Verification
 
 Verified on 2026-10-18 with the repository-pinned **Node 24.22.0** and **pnpm 12.14.0**, selected through an isolated npm-exec toolchain. Dependencies and the lockfile are unchanged.

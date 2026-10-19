@@ -161,9 +161,11 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
       expect((await request(`/setup/items/${item.id}`, { expectedRevision: 1, available: false }, 'PATCH')).status).toBe(200);
       expect((await request(`/setup/items/${item.id}`, { expectedRevision: 2, archived: true }, 'PATCH')).status).toBe(200);
       expect((await request(`/setup/categories/${group.id}`, { expectedRevision: 2, archived: true }, 'PATCH')).status).toBe(200);
+      expect((await request(`/setup/items/${item.id}`, { expectedRevision: 3, archived: false }, 'PATCH')).status).toBe(200);
+      expect((await request(`/setup/categories/${group.id}`, { expectedRevision: 3, archived: false }, 'PATCH')).status).toBe(200);
       await vi.waitFor(() => {
-        expect(first.seen.menus).toHaveLength(6);
-        expect(second.seen.menus).toHaveLength(6);
+        expect(first.seen.menus).toHaveLength(8);
+        expect(second.seen.menus).toHaveLength(8);
       });
       expect(first.seen.menus).toEqual(second.seen.menus);
       first.seen.menus.forEach((event, index) => {
@@ -173,10 +175,11 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
       });
       expect(first.seen.menus.map(({ entityType, change }) => [entityType, change])).toEqual([
         ['category', 'created'], ['item', 'created'], ['category', 'updated'],
-        ['item', 'updated'], ['item', 'archived'], ['category', 'archived']
+        ['item', 'updated'], ['item', 'archived'], ['category', 'archived'],
+        ['item', 'updated'], ['category', 'updated']
       ]);
-      expect(new Set(first.seen.menus.map(({ eventId }) => eventId)).size).toBe(6);
-      expect(await sync()).toMatchObject({ menuRevision: 6, ordersRevision: 0 });
+      expect(new Set(first.seen.menus.map(({ eventId }) => eventId)).size).toBe(8);
+      expect(await sync()).toMatchObject({ menuRevision: 8, ordersRevision: 0 });
     } finally { inspection.close(); }
   });
 

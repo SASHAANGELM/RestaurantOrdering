@@ -21,6 +21,7 @@ export interface SetupEditorData {
   entity?: Category | MenuItem;
   categories: Category[];
   archive?: boolean;
+  restore?: boolean;
 }
 
 @Component({
@@ -35,14 +36,28 @@ export interface SetupEditorData {
   template: `
     <h2 mat-dialog-title id="setup-editor-title">{{ title }}</h2>
     <mat-dialog-content>
-      @if (archiving()) {
+      @if (restoring) {
+        <p>Restore <strong>{{ entity()?.name }}</strong>?</p>
+        @if (data.kind === 'category') {
+          <p>Available, nonarchived items in this category will return to Menu and can be ordered again. Individually archived items stay archived.</p>
+        } @else {
+          <p>This item will return to Menu when its category is active. Its availability setting is preserved.</p>
+          @if (itemCategoryArchived()) { <p role="status">This item's category is archived. Restore the category before this item can be ordered.</p> }
+          @if (entity(); as record) { @if ('available' in record && !record.available) { <p role="status">This item is unavailable. Enable availability after restoring to allow ordering.</p> } }
+        }
+        <p>Existing orders keep their original details.</p>
+        @if (!entity()?.archivedAt) { <p role="status">This record is already active. Close this dialog to continue.</p> }
+        <div class="dialog-confirm-actions"><button mat-button [disabled]="busy()" (click)="dialog.close()">Cancel</button>
+          <button [appBusy]="busy()" mat-flat-button [disabled]="busy() || !entity()?.archivedAt || conflict()" (click)="save()">{{ busy() ? 'Restoring…' : 'Restore' }}</button>
+        </div>
+      } @else if (archiving()) {
         <p>Archive <strong>{{ entity()?.name }}</strong>?</p>
         @if (data.kind === 'category') {
           <p>All active items in this category will disappear from Menu and cannot be ordered, including from existing carts. Their records are retained.</p>
         } @else {
           <p>This item will disappear from Menu and cannot be ordered, including from existing carts.</p>
         }
-        <p>Existing orders keep their original details. Archival cannot be undone.</p><div class="dialog-confirm-actions"><button mat-button [disabled]="busy()" (click)="dialog.close()">Cancel</button>
+        <p>Existing orders keep their original details. You can restore this record later by showing archived records in Settings.</p><div class="dialog-confirm-actions"><button mat-button [disabled]="busy()" (click)="dialog.close()">Cancel</button>
         <button [appBusy]="busy()" mat-flat-button class="danger-button" [disabled]="busy() || !!entity()?.archivedAt || conflict()" (click)="save()">{{ busy() ? 'Archiving…' : 'Archive' }}</button>
         </div>
       } @else {
@@ -76,10 +91,10 @@ export interface SetupEditorData {
       @if (error()?.body?.code === 'REVISION_CONFLICT' || error()?.body?.code === 'CATEGORY_ARCHIVED') {
         <button [appBusy]="busy()" mat-stroked-button [disabled]="busy()" (click)="reloadLatest()">Reload latest values</button>
       }
-      @if (entity()?.archivedAt) { <p role="status">This record is archived. Close this dialog to continue.</p> }
-      @if (!archiving() && entity() && !entity()?.archivedAt) { <div class="danger-zone"><p>Archiving removes this {{ data.kind }} from the menu.</p><button mat-stroked-button class="danger-button" [disabled]="busy() || conflict()" (click)="beginArchive()">Archive {{ data.kind }}</button></div> }
+      @if (!restoring && entity()?.archivedAt) { <p role="status">This record is archived. Close this dialog and show archived records in Settings to restore it.</p> }
+      @if (!restoring && !archiving() && entity() && !entity()?.archivedAt) { <div class="danger-zone"><p>Archiving removes this {{ data.kind }} from the menu.</p><button mat-stroked-button class="danger-button" [disabled]="busy() || conflict()" (click)="beginArchive()">Archive {{ data.kind }}</button></div> }
     </mat-dialog-content>
-    @if (!archiving()) { <mat-dialog-actions align="end">
+    @if (!restoring && !archiving()) { <mat-dialog-actions align="end">
       <button mat-button [disabled]="busy()" (click)="dialog.close()"><i class="ti ti-x" aria-hidden="true"></i> Cancel</button>
       <button [appBusy]="busy()" mat-flat-button type="submit" form="setup-form" [disabled]="busy() || !!entity()?.archivedAt || conflict()">{{ busy() ? 'Saving…' : 'Save' }}</button>
     </mat-dialog-actions> }
@@ -97,7 +112,12 @@ export class SetupEditor {
   readonly error = signal<ClientError | null>(null);
   readonly message = signal('');
   readonly archiving = signal(this.data.archive ?? false);
-  get title() { return `${this.archiving() ? 'Archive' : this.data.entity ? 'Edit' : 'Add'} ${this.data.kind}`; }
+  readonly restoring = this.data.restore ?? false;
+  get title() { return `${this.restoring ? 'Restore' : this.archiving() ? 'Archive' : this.data.entity ? 'Edit' : 'Add'} ${this.data.kind}`; }
+  itemCategoryArchived() {
+    const entity = this.entity();
+    return entity && 'categoryId' in entity && !this.categories().some((category) => category.id === entity.categoryId && category.archivedAt === null);
+  }
   beginArchive() { if (!this.busy() && this.entity() && !this.entity()?.archivedAt) { this.archiving.set(true); this.message.set(''); } }
   readonly form = new FormGroup({
     name: new FormControl('', { nonNullable: true }),
@@ -141,11 +161,12 @@ export class SetupEditor {
   }
 
   save() {
-    if (this.busy() || this.entity()?.archivedAt || this.conflict()) return;
+    if (this.busy() || this.conflict()) return;
+    if (this.restoring ? !this.entity()?.archivedAt : this.entity()?.archivedAt) return;
     this.error.set(null); this.message.set('');
     const entity = this.entity();
-    if (this.archiving() && entity) {
-      const body = { expectedRevision: entity.revision, archived: true as const };
+    if ((this.archiving() || this.restoring) && entity) {
+      const body = { expectedRevision: entity.revision, archived: !this.restoring };
       this.run(this.data.kind === 'category'
         ? this.api.updateCategory(entity.id, body).pipe(map((r) => r.menuRevision))
         : this.api.updateItem(entity.id, body).pipe(map((r) => r.menuRevision)));

@@ -168,13 +168,13 @@ describe('menu APIs and services with isolated real SQLite files', () => {
   it.each([
     {}, { expectedRevision: 1 }, { expectedRevision: 0, name: 'x' }, { expectedRevision: 1, priceMinor: 20 },
     { expectedRevision: 1, pricingMode: 'fixed' }, { expectedRevision: 1, pricingMode: 'open', priceMinor: null },
-    { expectedRevision: 1, archived: false }, { expectedRevision: 1, unknown: true }, { expectedRevision: 1, available: 'false' }
+    { expectedRevision: 1, archived: 'false' }, { expectedRevision: 1, unknown: true }, { expectedRevision: 1, available: 'false' }
   ])('rejects malformed item edit %j', async (body) => {
     await error(await patchItem(body), 400, 'VALIDATION_ERROR');
     expect(readMenuRevision(connection)).toBe(2);
   });
 
-  it.each([{ expectedRevision: 1 }, { expectedRevision: 1, archived: false }, { expectedRevision: 1, sortOrder: 0.5 }])(
+  it.each([{ expectedRevision: 1 }, { expectedRevision: 1, archived: 'false' }, { expectedRevision: 1, sortOrder: 0.5 }])(
     'rejects malformed category edit %j', async (body) => {
       await error(await request(`/setup/categories/${category.id}`, 'PATCH', body), 400, 'VALIDATION_ERROR');
       expect(readMenuRevision(connection)).toBe(2);
@@ -259,6 +259,76 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     expect(service.updateCategory(category.id, { expectedRevision: 2, archived: true })).toEqual({ ...archivedCategory, notification: null });
     const archivedItem = service.updateItem(item.id, { expectedRevision: 1, archived: true });
     expect(service.updateItem(item.id, { expectedRevision: 2, archived: true })).toEqual({ ...archivedItem, notification: null });
+  });
+
+  it('restores categories and items through HTTP, preserves their fields, and persists across reopening', async () => {
+    service.updateCategory(category.id, { expectedRevision: 1, archived: true });
+    service.updateItem(item.id, { expectedRevision: 1, archived: true });
+    const restoredCategory = categoryMutationResponseSchema.parse(await (await request(`/setup/categories/${category.id}`, 'PATCH',
+      { expectedRevision: 2, archived: false })).json());
+    expect(restoredCategory).toMatchObject({ category: { ...category, revision: 3, updatedAt: expect.any(String) }, menuRevision: 5 });
+    const restoredItem = itemMutationResponseSchema.parse(await (await patchItem({ expectedRevision: 2, archived: false })).json());
+    expect(restoredItem).toMatchObject({ item: { ...item, revision: 3, updatedAt: expect.any(String) }, menuRevision: 6 });
+    expect(menuCatalogSchema.parse(await (await request('/menu/catalog')).json()).items).toEqual([restoredItem.item]);
+    expect(categoriesResponseSchema.parse(await (await request('/setup/categories')).json()).categories).toEqual([restoredCategory.category]);
+    expect(itemsResponseSchema.parse(await (await request('/setup/items')).json()).items).toEqual([restoredItem.item]);
+    connection.close(); connection = openDatabase(filename);
+    expect(resolveItems(connection, [item.id]).items[0]).toMatchObject({ state: 'available', item: restoredItem.item, category: restoredCategory.category });
+    expect(readMenuRevision(connection)).toBe(6);
+  });
+
+  it('restores only the chosen record and preserves archived-category and unavailable eligibility', () => {
+    const unavailable = service.createItem({ categoryId: category.id, name: 'Unavailable', pricingMode: 'open', available: false }).response.item;
+    const individuallyArchived = service.createItem({ categoryId: category.id, name: 'Archived', pricingMode: 'open', available: true }).response.item;
+    service.updateItem(unavailable.id, { expectedRevision: 1, archived: true });
+    const archived = service.updateItem(individuallyArchived.id, { expectedRevision: 1, archived: true }).response.item;
+    service.updateCategory(category.id, { expectedRevision: 1, archived: true });
+    const restored = service.updateItem(unavailable.id, { expectedRevision: 2, archived: false }).response.item;
+    expect(restored).toMatchObject({ available: false, archivedAt: null, revision: 3, pricingMode: 'open', priceMinor: null });
+    expect(resolveItems(connection, [unavailable.id]).items[0]?.state).toBe('category-archived');
+    expect(listItems(connection, page).items).toEqual([]);
+    service.updateCategory(category.id, { expectedRevision: 2, archived: false });
+    const states = resolveItems(connection, [item.id, unavailable.id, individuallyArchived.id]).items;
+    expect(states.map((entry) => entry.state)).toEqual(['available', 'unavailable', 'archived']);
+    expect(states[0]).toMatchObject({ item: { revision: 1 } });
+    expect(states[2]).toMatchObject({ item: archived });
+    expect(listItems(connection, page).items.map((entry) => entry.id)).toEqual([item.id, unavailable.id]);
+  });
+
+  it('revision-checks repeated restores without changing timestamps or publishing no-op notifications', async () => {
+    expect(service.updateCategory(category.id, { expectedRevision: 1, archived: false })).toEqual({ response: { category, menuRevision: 2 }, notification: null });
+    expect(service.updateItem(item.id, { expectedRevision: 1, archived: false })).toEqual({ response: { item, menuRevision: 2 }, notification: null });
+    service.updateCategory(category.id, { expectedRevision: 1, archived: true });
+    service.updateItem(item.id, { expectedRevision: 1, archived: true });
+    await error(await patchItem({ expectedRevision: 1, archived: false }), 409, 'REVISION_CONFLICT');
+    await error(await request(`/setup/categories/${category.id}`, 'PATCH', { expectedRevision: 1, archived: false }), 409, 'REVISION_CONFLICT');
+    expect(readMenuRevision(connection)).toBe(4);
+    const restoredCategory = service.updateCategory(category.id, { expectedRevision: 2, archived: false });
+    expect(service.updateCategory(category.id, { expectedRevision: 3, archived: false })).toEqual({ ...restoredCategory, notification: null });
+    const restoredItem = service.updateItem(item.id, { expectedRevision: 2, archived: false });
+    expect(service.updateItem(item.id, { expectedRevision: 3, archived: false })).toEqual({ ...restoredItem, notification: null });
+    await error(await patchItem({ expectedRevision: 2, archived: false }), 409, 'REVISION_CONFLICT');
+    await error(await request(`/setup/categories/${category.id}`, 'PATCH', { expectedRevision: 2, archived: false }), 409, 'REVISION_CONFLICT');
+    expect(readMenuRevision(connection)).toBe(6);
+  });
+
+  it('commits restoration before notification and rolls it back if the menu revision write fails', () => {
+    service.updateCategory(category.id, { expectedRevision: 1, archived: true });
+    service.updateItem(item.id, { expectedRevision: 1, archived: true });
+    connection.sqlite.exec("CREATE TRIGGER fail_restore BEFORE UPDATE OF menu_revision ON app_state BEGIN SELECT RAISE(ABORT, 'test failure'); END");
+    expect(() => service.updateCategory(category.id, { expectedRevision: 2, archived: false })).toThrow();
+    expect(() => service.updateItem(item.id, { expectedRevision: 2, archived: false })).toThrow();
+    expect(resolveItems(connection, [item.id]).items[0]).toMatchObject({ state: 'archived', item: { revision: 2 }, category: { revision: 2, archivedAt: expect.any(String) } });
+    expect(readMenuRevision(connection)).toBe(4);
+    connection.sqlite.exec('DROP TRIGGER fail_restore');
+    const observer = openDatabase(filename);
+    try {
+      const restoredCategory = service.updateCategory(category.id, { expectedRevision: 2, archived: false });
+      const restoredItem = service.updateItem(item.id, { expectedRevision: 2, archived: false });
+      expect(menuChangedSchema.parse(restoredCategory.notification)).toMatchObject({ entityType: 'category', entityId: category.id, change: 'updated', menuRevision: 5 });
+      expect(menuChangedSchema.parse(restoredItem.notification)).toMatchObject({ entityType: 'item', entityId: item.id, change: 'updated', menuRevision: 6 });
+      expect(resolveItems(observer, [item.id]).items[0]).toMatchObject({ state: 'available', item: restoredItem.response.item, category: restoredCategory.response.category });
+    } finally { observer.close(); }
   });
 
   it('exposes valid notification data only after commits are visible to another connection', () => {

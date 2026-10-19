@@ -71,7 +71,12 @@ describe('setup and common contracts', () => {
     expect(updateItemSchema.safeParse({ expectedRevision: 1 }).success).toBe(false);
     expect(updateCategorySchema.safeParse({ expectedRevision: 1 }).success).toBe(false);
     expect(updateCategorySchema.safeParse({ expectedRevision: 1, archived: true }).success).toBe(true);
-    expect(updateCategorySchema.safeParse({ expectedRevision: 1, archived: false }).success).toBe(false);
+    expect(updateCategorySchema.safeParse({ expectedRevision: 1, archived: false }).success).toBe(true);
+    expect(updateItemSchema.safeParse({ expectedRevision: 1, archived: false }).success).toBe(true);
+    for (const archived of ['false', 0, null]) {
+      expect(updateCategorySchema.safeParse({ expectedRevision: 1, archived }).success).toBe(false);
+      expect(updateItemSchema.safeParse({ expectedRevision: 1, archived }).success).toBe(false);
+    }
     expect(updateItemSchema.safeParse({ expectedRevision: 0, name: 'Coffee' }).success).toBe(false);
   });
 

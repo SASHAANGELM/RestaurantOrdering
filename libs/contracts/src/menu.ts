@@ -18,7 +18,7 @@ export const updateCategorySchema = z.strictObject({
   expectedRevision: entityRevisionSchema,
   name: nameSchema.optional(),
   sortOrder: z.int().optional(),
-  archived: z.literal(true).optional()
+  archived: z.boolean().optional()
 }).refine((value) => value.name !== undefined || value.sortOrder !== undefined || value.archived !== undefined,
   'Provide at least one change.');
 
@@ -51,7 +51,7 @@ const itemChanges = {
   name: nameSchema.optional(),
   description: descriptionSchema.nullable().optional(),
   available: z.boolean().optional(),
-  archived: z.literal(true).optional()
+  archived: z.boolean().optional()
 };
 // Send the complete pricing pair when changing price/mode. Omit both for other edits.
 export const updateItemSchema = z.union([
