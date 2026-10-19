@@ -40,7 +40,7 @@ test('cart dialogs share price/quantity controls, hide comments until requested,
   await page.goto('/cart');
   const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb', exact: true });
   await expect(breadcrumb).toHaveText('Menu>Cart'); await expect(breadcrumb.locator('i')).toHaveCount(0);
-  const cart = page.getByRole('region', { name: 'Your cart', exact: true });
+  const cart = page.getByRole('region', { name: /\d+ items? in your cart/, exact: true });
   const priceInput = cart.getByRole('textbox', { name: `Cart unit price for ${name}`, exact: true });
   await expect(priceInput).toHaveValue('1.25');
   await priceInput.fill('2,50'); await expect(priceInput).toHaveValue('2.50');
@@ -82,7 +82,7 @@ test('fixed unit prices share the left column with open prices in cart and dialo
     await page.screenshot({ path: testInfo.outputPath(`fixed-price-dialog-${width}.png`) });
     await dialog.getByRole('button', { name: /^(Add to cart|Edit in cart)$/ }).click(); await expect(dialog).not.toBeVisible();
     await page.goto('/cart');
-    const rows = page.getByRole('region', { name: 'Your cart', exact: true }).getByRole('listitem');
+    const rows = page.getByRole('region', { name: /\d+ items? in your cart/, exact: true }).getByRole('listitem');
     const fixedRow = rows.filter({ has: page.getByRole('link', { name: fixed.name, exact: true }) });
     const openRow = rows.filter({ has: page.getByRole('link', { name: open.name, exact: true }) });
     await expect(fixedRow.locator('.fixed-price')).toHaveText('7.50 USD');
@@ -102,7 +102,7 @@ test('fixed unit prices share the left column with open prices in cart and dialo
 
 test('cart silently updates names/images, requires persistent OK for price/type changes, and keeps eligibility errors red', async ({ page, request }, testInfo) => {
   const { item, name } = await fixture(request); await menu(page, name); await addFromMenu(page, name); await page.goto('/cart');
-  const line = page.getByRole('region', { name: 'Your cart', exact: true }).getByRole('listitem');
+  const line = page.getByRole('region', { name: /\d+ items? in your cart/, exact: true }).getByRole('listitem');
   const confirm = page.getByRole('button', { name: 'Confirm order', exact: true }); const renamed = `${name} renamed`;
   expect((await request.patch(`/api/setup/items/${item.id}`, { data: { expectedRevision: 1, name: renamed, imageUrl: '/api/images/salad.jpg' } })).ok()).toBe(true);
   await expect(line.getByRole('link', { name: renamed, exact: true })).toBeVisible();
@@ -159,7 +159,7 @@ test('orders show snapshot image stacks, short IDs and inline statuses; details 
   await page.screenshot({ path: testInfo.outputPath('order-details-desktop.png'), fullPage: true });
   await ordered.getByRole('link', { name, exact: true }).click();
   await expect(breadcrumb).toHaveText(`Settings>Items>${name}`);
-  const state = page.locator('.item-status'); await expect(state).toHaveClass(/available/); await expect(state.locator('i')).toHaveClass(/ti-circle-check/);
+  const state = page.locator('.item-status'); await expect(state).toHaveClass(/available/); await expect(state.locator('i')).toHaveClass(/ti-eye/);
   const colors = [await state.evaluate(element => getComputedStyle(element).color)];
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   const editor = page.getByRole('dialog', { name: 'Edit item', exact: true }); const renamed = `${name} updated`;

@@ -3,6 +3,7 @@ import { afterNextRender, ChangeDetectionStrategy, Component, inject, Injector, 
 import { MatButton } from '@angular/material/button';
 import { MatToolbar } from '@angular/material/toolbar';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { CartStore } from './features/menu/cart.store';
 import { RealtimeSync } from './core/realtime-sync';
 
 @Component({
@@ -14,26 +15,24 @@ import { RealtimeSync } from './core/realtime-sync';
       <a class="brand" title="Restaurant Ordering home" routerLink="/menu" aria-label="Restaurant Ordering home"><span class="brand-mark" aria-hidden="true">R</span><span class="brand-name">Restaurant Ordering</span></a>
       <nav class="desktop-navigation" aria-label="Main navigation">
         <a mat-button routerLink="/menu" routerLinkActive="active" ariaCurrentWhenActive="page"><i class="ti ti-tools-kitchen-2" aria-hidden="true"></i> Menu</a>
-        <a mat-button routerLink="/cart" routerLinkActive="active" ariaCurrentWhenActive="page"><i class="ti ti-shopping-cart" aria-hidden="true"></i> Cart</a>
+        <a mat-button class="cart-link" aria-label="Cart" [attr.aria-description]="cart.lines().length ? cart.count() + ' items in your cart' : null" routerLink="/cart" routerLinkActive="active" ariaCurrentWhenActive="page"><i class="ti ti-shopping-cart" aria-hidden="true"></i> Cart@if (cart.lines().length) { <span class="cart-count" aria-hidden="true">{{ cart.count() }}</span> }</a>
         <a mat-button routerLink="/orders" routerLinkActive="active" ariaCurrentWhenActive="page"><i class="ti ti-receipt" aria-hidden="true"></i> Orders</a>
         <a mat-button routerLink="/setup" routerLinkActive="active" ariaCurrentWhenActive="page"><i class="ti ti-settings" aria-hidden="true"></i> Settings</a>
       </nav>
-      <a mat-button class="icon-button mobile-only header-cart" routerLink="/cart" aria-label="Cart" title="Cart"><i class="ti ti-shopping-cart" aria-hidden="true"></i></a>
+      <a mat-button class="icon-button mobile-only header-cart cart-link" routerLink="/cart" aria-label="Cart" [attr.aria-description]="cart.lines().length ? cart.count() + ' items in your cart' : null" title="Cart"><i class="ti ti-shopping-cart" aria-hidden="true"></i>@if (cart.lines().length) { <span class="cart-count" aria-hidden="true">{{ cart.count() }}</span> }</a>
     </mat-toolbar>
     <dialog #navigationDrawer class="navigation-drawer" tabindex="-1" (keydown.escape)="closeNavigation()" aria-labelledby="drawer-title" (click)="closeBackdrop($event)">
       <div class="drawer-heading"><a class="brand" routerLink="/menu" (click)="closeNavigation()"><span class="brand-mark" aria-hidden="true">R</span><span id="drawer-title">Restaurant Ordering</span></a><button mat-button class="icon-button" aria-label="Close navigation" title="Close navigation" (click)="closeNavigation()"><i class="ti ti-x" aria-hidden="true"></i></button></div>
       <nav aria-label="Mobile navigation">
         <a mat-button routerLink="/menu" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeNavigation()"><i class="ti ti-tools-kitchen-2" aria-hidden="true"></i> Menu</a>
-        <a mat-button routerLink="/cart" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeNavigation()"><i class="ti ti-shopping-cart" aria-hidden="true"></i> Cart</a>
+        <a mat-button class="cart-link" aria-label="Cart" [attr.aria-description]="cart.lines().length ? cart.count() + ' items in your cart' : null" routerLink="/cart" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeNavigation()"><i class="ti ti-shopping-cart" aria-hidden="true"></i> Cart@if (cart.lines().length) { <span class="cart-count" aria-hidden="true">{{ cart.count() }}</span> }</a>
         <a mat-button routerLink="/orders" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeNavigation()"><i class="ti ti-receipt" aria-hidden="true"></i> Orders</a>
         <a mat-button routerLink="/setup" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeNavigation()"><i class="ti ti-settings" aria-hidden="true"></i> Settings</a>
       </nav>
     </dialog>
-    <button class="connection-indicator" [class.connected]="sync.connectionState() === 'connected'" [class.connecting]="sync.connectionState() === 'connecting'" (click)="showConnection()" aria-haspopup="dialog" aria-label="Connection details" [title]="connectionLabel()">
-      <span class="sr-only">{{ connectionLabel() }}</span>
-    </button>
     <main id="main-content" tabindex="-1"><router-outlet (activate)="focusContent()" /></main>
-    <div class="sync-banner" role="status" aria-live="polite">
+    <div class="sync-banner" role="status" aria-live="polite"><button class="connection-status" (click)="showConnection()" aria-haspopup="dialog" aria-label="Connection details" [title]="connectionLabel()">
+      <span class="connection-dot" [class.connected]="sync.connectionState() === 'connected'" aria-hidden="true"></span><strong>{{ connectionLabel() }}</strong><span class="update-status">
       @if (sync.lastChecked(); as updated) { <span>Last checked <time [attr.datetime]="checkedTimestamp(updated)">{{ updated | date:'medium' }}</time>.</span> }
       @if (dialogError()) { {{ dialogError() }} }
       @else if (sync.connectionState() === 'disconnected') { Offline. Displayed content is retained; waiting to reconnect. }
@@ -41,18 +40,20 @@ import { RealtimeSync } from './core/realtime-sync';
       @else if (sync.connectionState() === 'connecting') { Waiting for live updates… }
       @else if (sync.error()) { Update check failed. Open connection details to retry. }
       @else if (!sync.lastChecked()) { Waiting for the first backend check. }
-    </div>
+    </span></button></div>
   `,
   styles: `
     .app-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1rem max(1.25rem, calc((100vw - 90rem) / 2)); min-height: 5rem; height: auto; background: white; border-bottom: 1px solid #d7e2e9; }
     .brand { display: flex; align-items: center; gap: .65rem; text-decoration: none; color: inherit; font-size: 1.05rem; font-weight: 650; white-space: normal; line-height: 1.3; }
     .brand-mark { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .5rem; background: #2c6c93; color: white; font-family: Georgia, serif; }
     nav { display: flex; gap: .35rem; flex-wrap: wrap; } nav .active { background: #e3eff7; color: #2c6c93; }
-    .sync-banner { max-width: 90rem; min-height: 3rem; margin: auto; padding: .75rem 1.25rem; color: #526775; font-size: .8rem; } .sync-banner span { margin-right: .4rem; }
+    .sync-banner { max-width: 90rem; min-height: 3rem; margin: auto; padding: .75rem 1.25rem; color: #526775; font-size: .8rem; } .update-status > span { margin-right: .4rem; }
     main { max-width: 90rem; min-height: 60vh; padding: 2rem 1.25rem 4rem; margin: auto; }
-    .connection-indicator { position: fixed; right: 16px; bottom: 16px; z-index: 30; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: #a63329; color: white; cursor: pointer; display: grid; place-items: center; }
-    .connection-indicator.connected { background: #e77923; animation: connection-pulse 2s ease-out infinite; }
-    @keyframes connection-pulse { 0% { box-shadow: 0 0 0 0 #e7792360; } 100% { box-shadow: 0 0 0 9px #e7792300; } } .connection-indicator.connecting { background: #976222; }
+    .connection-status { display: flex; align-items: baseline; flex-wrap: wrap; gap: .5rem; width: 100%; padding: .5rem 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: .25rem; }
+    .connection-status:hover { color: #20303c; } .connection-status strong { font-weight: 650; }
+    .connection-dot { width: .65rem; height: .65rem; border-radius: 50%; background: #b3261e; flex-shrink: 0; align-self: baseline; } .connection-dot.connected { background: #268347; }
+    .update-status { flex: 1 1 15rem; }
+    .cart-link { position: relative; overflow: visible; } .cart-count { position: absolute; right: -.2rem; top: -.3rem; min-width: 1.25rem; height: 1.25rem; padding: 0 .3rem; display: grid; place-items: center; border-radius: 999px; background: #2c6c93; color: white; font-size: .7rem; font-weight: 700; line-height: 1; box-shadow: 0 0 0 2px white; }
     .skip-link { position: absolute; left: 1rem; top: -5rem; padding: 1rem; z-index: 100; background: white; } .skip-link:focus { top: .5rem; }
     .mobile-only { display: none; }
     .navigation-drawer { position: fixed; inset: 0 auto 0 0; margin: 0; height: 100dvh; max-height: none; width: min(22rem, 90vw); max-width: none; padding: 1.25rem; border: 0; background: white; color: #20303c; box-shadow: 4px 0 30px #0002; }
@@ -68,10 +69,11 @@ export class App {
   closeNavigation() { this.navigationDrawer()?.nativeElement.close(); }
   closeBackdrop(event: MouseEvent) { if (event.target === this.navigationDrawer()?.nativeElement) { const bounds = this.navigationDrawer()!.nativeElement.getBoundingClientRect(); if (event.clientX > bounds.right || event.clientX < bounds.left) this.closeNavigation(); } }
   readonly sync = inject(RealtimeSync);
+  readonly cart = inject(CartStore);
   readonly dialogError = signal<string | null>(null);
   private readonly injector = inject(Injector);
   checkedTimestamp(value: number) { return new Date(value).toISOString(); }
-  connectionLabel() { return this.sync.connectionState() === 'connected' ? 'Connected' : this.sync.connectionState() === 'connecting' ? 'Connecting' : 'Offline'; }
+  connectionLabel() { return this.sync.connectionState() === 'connected' ? 'Connected' : 'Disconnected'; }
   async showConnection() {
     this.dialogError.set(null);
     try { const { openConnectionDialog } = await import('./shared/connection-dialog'); openConnectionDialog(this.injector); }

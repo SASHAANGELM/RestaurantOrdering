@@ -4,7 +4,7 @@ Read this index first every time you need the next task or a list of all tasks.
 Then open the relevant task file for its scope, acceptance criteria, completion
 record, and verification results; read dependency files only as needed.
 
-**24 complete.**
+**27 complete.**
 
 | ID | Task | Status | Depends on |
 | --- | --- | --- | --- |
@@ -32,6 +32,9 @@ record, and verification results; read dependency files only as needed.
 | T22 | [Refine item lifecycle and add item details](t22-refine-item-lifecycle-and-add-item-details.md) | Complete | T13, T20, T21 |
 | T23 | [Unify page controls and acknowledge cart price changes](t23-unify-page-controls-and-acknowledge-cart-price-changes.md) | Complete | T12, T13, T20, T22 |
 | T24 | [Unify cart price and quantity layout](t24-unify-cart-price-and-quantity-layout.md) | Complete | T23 |
+| T25 | [Refine cart feedback and add item image gallery](t25-refine-cart-feedback-and-add-item-image-gallery.md) | Complete | T24, T18 |
+| T26 | [Share order rows and refine cart comments and quantities](t26-share-order-rows-and-refine-cart-comments-and-quantities.md) | Complete | T25, T23, T22 |
+| T27 | [Make item order history read-only](t27-make-item-order-history-read-only.md) | Complete | T26 |
 
 ## Selecting work
 

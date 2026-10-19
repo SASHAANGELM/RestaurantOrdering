@@ -16,7 +16,7 @@ test('photo grid, category navigation and compact cart footer work across deskto
   await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto('/menu');
   const summary = page.getByRole('region', { name: 'Cart summary' });
   const menu = page.getByRole('region', { name: 'Menu items' });
-  await expect(summary).toHaveCount(0); await expect(page.getByRole('region', { name: 'Your cart' })).toHaveCount(0);
+  await expect(summary).toHaveCount(0); await expect(page.getByRole('region', { name: /\d+ items? in your cart/ })).toHaveCount(0);
   const categoryButton = page.getByRole('navigation', { name: 'Menu categories' }).getByRole('button', { name, exact: true });
   await categoryButton.click(); await expect(categoryButton).toHaveAttribute('aria-pressed', 'true');
   await expect(menu.getByRole('listitem')).toHaveCount(4);
@@ -36,7 +36,7 @@ test('photo grid, category navigation and compact cart footer work across deskto
   await expect(summary).toContainText('Unavailable');
   expect((await request.patch(`/api/setup/items/${items[0]!.id}`, { data: { expectedRevision: 2, imageUrl: '/images/missing.jpg' } })).ok()).toBe(true);
   const firstPhoto = menu.getByRole('img', { name: items[0]!.name, exact: true });
-  await expect(firstPhoto).toHaveAttribute('src', '/api/images/salad.jpg');
+  await expect(menu.getByRole('img', { name: items[0]!.name + ' — no image available', exact: true })).toBeVisible();
   expect((await request.patch(`/api/setup/items/${items[0]!.id}`, { data: { expectedRevision: 3, imageUrl: '/images/soup.jpg' } })).ok()).toBe(true);
   await expect(firstPhoto).toHaveAttribute('src', '/api/images/soup.jpg');
   await page.screenshot({ path: testInfo.outputPath('menu-grid-desktop.png'), fullPage: true });
@@ -45,7 +45,7 @@ test('photo grid, category navigation and compact cart footer work across deskto
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('menu-grid-mobile.png'), fullPage: true });
   await summary.getByRole('link', { name: 'View cart' }).click(); await expect(page).toHaveURL(/\/cart$/);
-  const cart = page.getByRole('region', { name: 'Your cart' }); await expect(cart.getByRole('listitem')).toHaveCount(2);
+  const cart = page.getByRole('region', { name: /\d+ items? in your cart/ }); await expect(cart.getByRole('listitem')).toHaveCount(2);
   await cart.getByRole('spinbutton', { name: `Cart quantity for ${items[0]!.name}`, exact: true }).fill('0');
   await page.getByRole('navigation', { name: 'Breadcrumb', exact: true }).getByRole('link', { name: 'Menu', exact: true }).click();
   await expect(summary).toContainText('Correct cart line inputs'); await expect(summary).toContainText('Check total');

@@ -69,7 +69,7 @@ test('zero quantity, plain confirmations and kitchen comments persist through ca
   const clear = page.getByRole('dialog', { name: 'Clear your cart?' }); await expect(clear.locator('.danger-zone')).toHaveCount(0);
   await clear.getByRole('button', { name: 'Cancel', exact: true }).click();
   await footer.getByRole('link', { name: 'View cart' }).click();
-  const line = page.getByRole('region', { name: 'Your cart' }).getByRole('listitem').filter({ hasText: names[0] });
+  const line = page.getByRole('region', { name: /\d+ items? in your cart/ }).getByRole('listitem').filter({ hasText: names[0] });
   await expect(line).toContainText('No mustard'); await line.getByRole('button', { name: 'Edit comment' }).click();
   const comment = page.getByRole('dialog', { name: 'Kitchen comment' }); await expect(comment.getByRole('textbox')).toHaveValue('No mustard');
   await comment.getByRole('textbox').fill('No mustard, please'); await comment.getByRole('button', { name: 'Save comment' }).click(); await expect(comment).not.toBeVisible(); await expect(line).toContainText('No mustard, please');

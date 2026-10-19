@@ -58,6 +58,9 @@ app-root:has(app-cart-summary .cart-summary) .sync-banner { padding-bottom: 6.5r
 button.icon-button, a.icon-button { min-width: 2.75rem; width: 2.75rem; height: 2.75rem; padding: .5rem; border: 0; border-radius: 50%; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: #20303c; }
 .icon-button .ti { margin: 0; font-size: 1.3rem; }
 
+// Anchor the cart count to the whole link, including Material's projected label.
+.cart-link.mat-mdc-button-base > .mdc-button__label { position: static; }
+
 body:has(dialog[open]) { overflow: hidden; }
 
 @media (max-width: 650px) { app-root:has(app-cart-summary .cart-summary) .sync-banner { padding-bottom: 10rem; } }

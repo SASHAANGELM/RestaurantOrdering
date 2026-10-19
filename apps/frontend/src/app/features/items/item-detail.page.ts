@@ -1,23 +1,22 @@
-import { CurrencyPipe, DatePipe, TitleCasePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { CurrencyPipe, DatePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
-import { MatPaginator } from '@angular/material/paginator';
-import { PageHeading } from '../../shared/page-heading';
-import { Breadcrumbs } from '../../shared/breadcrumbs';
 import { MatDialog } from '@angular/material/dialog';
-import { DestroyRef, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatPaginator } from '@angular/material/paginator';
+import { ActivatedRoute } from '@angular/router';
 import { ApiClient, clientError } from '../../core/api-client';
-import { SetupEditor } from '../setup/setup-editor';
+import { Breadcrumbs } from '../../shared/breadcrumbs';
 import { ItemImage } from '../../shared/item-image';
 import { LoadState } from '../../shared/load-state';
+import { PageHeading } from '../../shared/page-heading';
+import { SetupEditor } from '../setup/setup-editor';
+import { OrderRow } from '../orders/order-row';
 import { ItemDetailStore } from './item-detail.store';
 
 @Component({
   selector: 'app-item-detail-page', providers: [ItemDetailStore],
-  imports: [CurrencyPipe, DatePipe, TitleCasePipe, RouterLink, MatButton, MatPaginator, PageHeading, Breadcrumbs, ItemImage, LoadState],
+  imports: [CurrencyPipe, DatePipe, MatButton, MatPaginator, PageHeading, Breadcrumbs, ItemImage, LoadState, OrderRow],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-breadcrumbs [items]="[{label: 'Settings', path: '/setup'}, {label: 'Items', path: '/setup/items'}, {label: store.current()?.item?.name ?? 'Item details'}]" />
@@ -29,7 +28,7 @@ import { ItemDetailStore } from './item-detail.store';
     @if (store.current(); as detail) {
       <section class="item-details" aria-label="Item details">
         <app-item-image class="hero" [src]="detail.item.imageUrl" [name]="detail.item.name" />
-        <div><p role="status" [class]="'item-status ' + (detail.item.archivedAt ? 'archived' : detail.item.available ? 'available' : 'unavailable')"><i [class]="'ti ' + (detail.item.archivedAt ? 'ti-archive' : detail.item.available ? 'ti-circle-check' : 'ti-circle-pause')" aria-hidden="true"></i> {{ detail.item.archivedAt ? 'Archived' : detail.item.available ? 'Available' : 'Unavailable' }}</p>
+        <div><p role="status" [class]="'item-status ' + (detail.item.archivedAt ? 'archived' : detail.item.available ? 'available' : 'unavailable')"><i [class]="'ti ' + (detail.item.archivedAt ? 'ti-archive' : detail.item.available ? 'ti-eye' : 'ti-eye-off')" aria-hidden="true"></i> {{ detail.item.archivedAt ? 'Archived' : detail.item.available ? 'Available' : 'Unavailable' }}</p>
           <dl><dt>Category</dt><dd>{{ detail.category.name }}{{ detail.category.archivedAt ? ' (archived)' : '' }}</dd>
             <dt>Price</dt><dd>{{ detail.item.pricingMode === 'open' ? 'Open price — entered when ordering' : (detail.item.priceMinor / 100 | currency) }}</dd>
             <dt>Updated</dt><dd>{{ detail.item.updatedAt | date:'medium' }}</dd></dl>
@@ -45,8 +44,7 @@ import { ItemDetailStore } from './item-detail.store';
         @if (store.related(); as history) {
           <p class="muted">{{ history.total }} orders · Page {{ history.page }}</p>
           <ul class="data-list">@for (order of history.orders; track order.id) {
-            <li [class]="'order-row status-' + order.status"><div><a [routerLink]="['/orders', order.id]">Order {{ order.id.slice(0, 8) }}</a><p class="muted">Placed {{ order.createdAt | date:'medium' }}</p></div>
-              <span [class]="'status-badge status-' + order.status">{{ order.status | titlecase }}</span><span>{{ order.totalMinor / 100 | currency:order.currency }}</span></li>
+            <li app-order-row [order]="order"></li>
           } @empty { <li>{{ history.page > 1 ? 'No orders on this page.' : 'No orders contain this item yet.' }}</li> }</ul>
           <mat-paginator aria-label="Related order pages" [length]="history.total" [pageSize]="history.pageSize" [pageIndex]="history.page - 1" [pageSizeOptions]="[10, 25, 50, 100]" (page)="store.orderPage($event.pageIndex + 1, $event.pageSize)" />
           @if (!history.orders.length && history.page > 1) { <button mat-button (click)="store.orderPage(1, history.pageSize)">Return to first order page</button> }
@@ -76,6 +74,7 @@ export class ItemDetailPage {
         this.openingEditor.set(false);
         if (this.store.current()?.item.id !== detail.item.id) return;
         this.dialog.open(SetupEditor, { id: 'setup-editor', ariaLabelledBy: 'setup-editor-title', width: '36rem', maxWidth: 'calc(100vw - 2rem)',
+          autoFocus: 'input[formControlName="name"]', restoreFocus: true,
           data: { kind: 'item', entity: detail.item, categories: result.categories } }).afterClosed().pipe(takeUntilDestroyed(this.destroy))
           .subscribe(saved => { if (saved) this.store.reload(); });
       },

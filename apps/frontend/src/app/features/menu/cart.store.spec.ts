@@ -42,12 +42,22 @@ describe('per-tab cart intent and reconciliation', () => {
   }
   afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
 
+  it('starts with an empty zero discount, accepts clearing it, and counts quantities across lines', () => {
+    const cart = setup(); expect(cart.discountText()).toBe('');
+    cart.add(fixed, '2'); cart.add(open, '3', '1.00'); TestBed.tick(); resolve(cart);
+    expect(cart.count()).toBe(5);
+    expect(cart.estimate()).toMatchObject({ discountMinor: 0, totalMinor: 358, error: null });
+    cart.discount('0.29'); expect(cart.estimate().totalMinor).toBe(329);
+    cart.discount(''); expect(cart.estimate()).toMatchObject({ discountMinor: 0, totalMinor: 358, error: null });
+    cart.discount('1.234'); expect(cart.estimate().error).toContain('two decimal');
+  });
+
   it('clears lines and discount together, persists empty state and respects checkout locks', () => {
     const cart = setup(); cart.add(fixed, '2'); TestBed.tick(); resolve(cart); cart.discount('0.29');
     cart.lockCheckout(true); cart.clear(); expect(cart.lines()).toHaveLength(1);
     cart.lockCheckout(false); cart.clear(); TestBed.tick();
-    expect(cart.lines()).toEqual([]); expect(cart.discountText()).toBe('0.00');
-    expect(storedCartSchema.parse(JSON.parse(saved.get(CART_STORAGE_KEY)!))).toMatchObject({ lines: [], discountText: '0.00' });
+    expect(cart.lines()).toEqual([]); expect(cart.discountText()).toBe('');
+    expect(storedCartSchema.parse(JSON.parse(saved.get(CART_STORAGE_KEY)!))).toMatchObject({ lines: [], discountText: '' });
   });
 
   it('updates selected quantities, merges matching open-price lines safely and preserves invalid drafts', () => {

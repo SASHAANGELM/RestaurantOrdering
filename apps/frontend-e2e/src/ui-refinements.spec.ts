@@ -28,7 +28,7 @@ test('quantity controls, cart errors, confirmed removal, loading overlays and li
   expect((await dialog.locator('app-quantity-input').boundingBox())!.height).toBe(56);
   await dialog.getByRole('button', { name: 'Add to cart' }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
-  const cart = page.getByRole('region', { name: 'Your cart' });
+  const cart = page.getByRole('region', { name: /\d+ items? in your cart/ });
   const line = cart.getByRole('listitem').filter({ hasText: name });
   await expect(line.getByRole('img', { name })).toHaveAttribute('src', '/api/images/soup.jpg');
   const remove = line.getByRole('button', { name: `Remove ${name} from cart`, exact: true });

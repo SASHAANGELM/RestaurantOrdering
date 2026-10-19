@@ -6,7 +6,7 @@ import { RouterLink } from '@angular/router';
 import { ItemImageStack } from '../../shared/item-image-stack';
 import { ClearCartButton } from './clear-cart-button';
 import { CartStore } from './cart.store';
-import { quantityValue } from './cart.model';
+import { cartItemCount } from './cart.model';
 
 @Component({
   selector: 'app-cart-summary', imports: [CurrencyPipe, MatButton, MatTooltip, RouterLink, ItemImageStack, ClearCartButton], changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,21 +20,26 @@ import { quantityValue } from './cart.model';
   }`,
   styles: [`
     .cart-summary { position: fixed; inset: auto 0 0; z-index: 10; background: white; border-top: 1px solid #d7e2e9; box-shadow: 0 -4px 20px #142f4410; }
-    .summary-inner { max-width: 90rem; min-height: 79px; margin: auto; padding: .75rem 2.75rem .75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    .summary-inner { max-width: 90rem; min-height: 79px; margin: auto; padding: .75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
     .summary-content { display: flex; align-items: center; gap: 1rem; min-width: 0; } .summary-images { display: flex; flex-shrink: 0; padding-right: .5rem; } .summary-images app-item-image { margin-right: -.5rem; border: 2px solid white; border-radius: 50%; }
     .summary-copy { display: grid; gap: .2rem; min-width: 0; } .summary-copy span { font-size: .8rem; } .dish-names { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #526775; }
     .summary-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; } .cart-problem { color: #923e2a; } .summary-space { height: 100px; }
-    @media (max-width: 650px) { .summary-inner { gap: .4rem; padding: .65rem 2.5rem .65rem .65rem; flex-wrap: wrap; } .summary-content { flex: 1; gap: .65rem; } .summary-content { flex-basis: 100%; } .summary-actions { width: 100%; justify-content: flex-end; } .summary-actions > strong { margin-right: auto; } .summary-space { height: 150px; } .summary-actions { gap: .2rem; } .summary-copy { font-size: .85rem; } .cart-link-text { display: none; } .summary-actions a { min-width: 2.75rem; padding: 0 .65rem; } .summary-actions a .ti { margin: 0; } }
+    @media (max-width: 650px) { .summary-inner { gap: .4rem; padding: .75rem 1rem; flex-wrap: wrap; } .summary-content { flex: 1; gap: .65rem; } .summary-content { flex-basis: 100%; } .summary-actions { width: 100%; justify-content: flex-end; } .summary-actions > strong { margin-right: auto; } .summary-space { height: 150px; } .summary-actions { gap: .2rem; } .summary-copy { font-size: .85rem; } .summary-actions a { min-width: 2.75rem; padding: 0 .65rem; }  }
   `]
 })
 export class CartSummary {
   readonly cart = inject(CartStore);
   readonly dishes = computed(() => [...new Map(this.cart.lines().map(line => [line.item.id, line.item])).values()]);
   readonly names = computed(() => {
-    const items = this.dishes();
-    return items.length <= 3 ? items.map(item => item.name).join(', ') : `${items.slice(0, 2).map(item => item.name).join(', ')} and ${items.length - 2} items more`;
+    const quantities = new Map<string, number>();
+    for (const line of this.cart.lines()) quantities.set(line.item.id, (quantities.get(line.item.id) ?? 0) + cartItemCount([line]));
+    const items = this.dishes().map(item => {
+      const quantity = quantities.get(item.id) ?? 0;
+      return quantity > 1 ? `${quantity}x ${item.name}` : item.name;
+    });
+    return items.length <= 3 ? items.join(', ') : `${items.slice(0, 2).join(', ')} and ${items.length - 2} items more`;
   });
-  readonly count = computed(() => this.cart.lines().reduce((sum, line) => { try { return sum + quantityValue(line.quantityText); } catch { return sum; } }, 0));
+  readonly count = computed(() => cartItemCount(this.cart.lines()));
   readonly problem = computed(() => {
     if (this.cart.checkoutLocked()) return 'Checkout pending. Open cart to resolve.';
     if (this.cart.estimate().error) return this.cart.estimate().error;

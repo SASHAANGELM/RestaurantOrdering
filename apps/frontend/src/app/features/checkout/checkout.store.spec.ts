@@ -76,7 +76,7 @@ describe('explicit quote review and frozen checkout recovery', () => {
   it('checks and places an order from a single action, preserving kitchen comments and blocking double clicks', () => {
     const { checkout, cart } = setup(); cart.add(item, '1', '', 'No mustard'); tick();
     checkout.placeOrder(); checkout.placeOrder();
-    const check = http.expectOne('/api/checkout/quotes'); expect(check.request.body.lines[0].comment).toBe('No mustard');
+    const check = http.expectOne('/api/checkout/quotes'); expect(cart.discountText()).toBe(''); expect(check.request.body.discountMinor).toBe(0); expect(check.request.body.lines[0].comment).toBe('No mustard');
     check.flush(quote());
     const placement = http.expectOne('/api/orders');
     expect(placement.request.body).toEqual({ quoteId });
@@ -125,7 +125,7 @@ describe('explicit quote review and frozen checkout recovery', () => {
     expect(request.request.headers.get('Idempotency-Key')).toBe(attempt.key);
     const original = cart.lines();
     cart.edit(original[0]!.id, 'quantityText', '2'); cart.discount('0.50'); cart.remove(original[0]!.id);
-    expect(cart.add(item, '1')).toContain('pending checkout'); expect(cart.lines()).toEqual(original); expect(cart.discountText()).toBe('0.00');
+    expect(cart.add(item, '1')).toContain('pending checkout'); expect(cart.lines()).toEqual(original); expect(cart.discountText()).toBe('');
     request.flush(order()); tick();
     expect(cart.lines()).toEqual([]); expect(saved.has(ATTEMPT_STORAGE_KEY)).toBe(false);
     expect(JSON.parse(saved.get(CART_STORAGE_KEY)!).lines).toEqual([]);

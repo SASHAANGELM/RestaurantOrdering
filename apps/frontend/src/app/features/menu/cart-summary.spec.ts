@@ -40,4 +40,20 @@ describe('menu cart summary', () => {
     expect(component.problem()).toContain('Unavailable');
     store.lines.set([]); fixture.detectChanges(); expect(fixture.nativeElement.querySelector('footer')).toBeNull();
   });
+  it('labels combined quantities per dish, retains single names and tolerates invalid drafts', () => {
+    const { store, fixture, component } = setup();
+    store.lines.set([
+      { quantityText: '2', item: { id: 'burger', name: 'Burger' } },
+      { quantityText: '4', item: { id: 'ice-cream', name: 'Ice cream' } },
+      { quantityText: '1', item: { id: 'bread', name: 'Bread' } }
+    ]); fixture.detectChanges();
+    expect(component.names()).toBe('2x Burger, 4x Ice cream, Bread');
+    expect(fixture.nativeElement.querySelector('.dish-names').title).toBe('2x Burger, 4x Ice cream, Bread');
+    store.lines.update(lines => [...lines,
+      { quantityText: '3', item: { id: 'burger', name: 'Burger' } },
+      { quantityText: 'invalid', item: { id: 'ice-cream', name: 'Ice cream' } }
+    ]);
+    expect(component.names()).toBe('5x Burger, 4x Ice cream, Bread');
+    expect(component.count()).toBe(10);
+  });
 });

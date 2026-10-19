@@ -18,7 +18,7 @@ import { CartStore } from './cart.store';
 @Component({
   selector: 'app-cart-panel', imports: [UnitPriceField, MatTooltip, QuantityInput, ItemImage, CurrencyPipe, MatButton, RouterLink, LoadState, CheckoutPanel, ClearCartButton], changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section aria-labelledby="cart-heading"><div class="page-heading"><h2 id="cart-heading" tabindex="-1">Your cart</h2>
+    <section aria-labelledby="cart-heading"><div class="page-heading"><h2 id="cart-heading" tabindex="-1">{{ cart.count() }} {{ cart.count() === 1 ? 'item' : 'items' }} in your cart</h2>
       <div class="actions">
       @if (cart.lines().length) { <app-clear-cart-button /> }</div></div>
       @if (cart.storageNotice()) { <p class="error-panel" role="status">{{ cart.storageNotice() }}</p> }
@@ -28,7 +28,7 @@ import { CartStore } from './cart.store';
           <li [class.line-unavailable]="!!line.inputIssue || !!line.eligibilityIssue" [class.line-warning]="!line.inputIssue && !line.eligibilityIssue && !!line.pricingWarning">
             <app-item-image [src]="line.item.imageUrl" [name]="line.item.name" />
             <div class="line-copy"><strong><a [routerLink]="['/items', line.item.id]">{{ line.item.name }}</a></strong>
-              @if (line.comment) { <p class="kitchen-comment">{{ line.comment }}</p> }
+              @if (line.comment) { <div class="kitchen-comment"><span class="comment-label">Comment:</span><p>{{ line.comment }}</p></div> }
               <button mat-button class="comment-action" [disabled]="cart.checkoutLocked()" (click)="editComment(line.id, line.comment)"><i class="ti ti-message" aria-hidden="true"></i>{{ line.comment ? 'Edit comment' : 'Add comment' }}</button>
             </div>
             <div class="line-controls"><div class="entry-controls">
@@ -43,7 +43,7 @@ import { CartStore } from './cart.store';
           </li>
         }</ul></div>
         <aside class="cart-totals" aria-label="Order summary"><h2><i class="ti ti-receipt" aria-hidden="true"></i> Order summary</h2>
-          <details class="discount" [open]="cart.discountText() !== '0.00' && cart.discountText() !== '0'"><summary><i class="ti ti-discount" aria-hidden="true"></i> Add a discount</summary><p class="muted">Apply a fixed discount to the whole order.</p><label>Fixed discount (USD)<input #discountInput aria-label="Fixed discount (USD)" inputmode="decimal" maxlength="32" [disabled]="cart.checkoutLocked()" [value]="cart.discountText()" (input)="cart.discount(discountInput.value)" /></label><button mat-button [disabled]="cart.checkoutLocked()" (click)="cart.discount('0.00')">Remove discount</button></details>
+          <details class="discount" [open]="!!cart.discountText() && cart.discountText() !== '0.00' && cart.discountText() !== '0'"><summary><i class="ti ti-discount" aria-hidden="true"></i> Add a discount</summary><p class="muted">Apply a fixed discount to the whole order.</p><label>Fixed discount (USD)<input #discountInput aria-label="Fixed discount (USD)" inputmode="decimal" placeholder="0.00" maxlength="32" [disabled]="cart.checkoutLocked()" [value]="cart.discountText() === '0.00' || cart.discountText() === '0' ? '' : cart.discountText()" (input)="cart.discount(discountInput.value)" /></label><button mat-button [disabled]="cart.checkoutLocked()" (click)="cart.discount('')">Remove discount</button></details>
           @if (cart.estimate().error) { <p class="issue" role="alert">{{ cart.estimate().error }}</p> }
           <dl aria-live="polite"><div><dt>Estimated subtotal</dt><dd>{{ cart.estimate().subtotalMinor === null ? '—' : ((cart.estimate().subtotalMinor ?? 0) / 100 | currency) }}</dd></div>
             @if ((cart.estimate().discountMinor ?? 0) > 0) { <div><dt>Discount</dt><dd>−{{ (cart.estimate().discountMinor ?? 0) / 100 | currency }}</dd></div> }
@@ -59,8 +59,8 @@ import { CartStore } from './cart.store';
   styles: [`
     section, .cart-items { min-width: 0; } .cart-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(19rem, 1fr); gap: 2rem; align-items: start; }
     .cart-totals { background: white; border: 1px solid #d7e2e9; padding: 1.5rem; border-radius: .75rem; position: sticky; top: 1rem; } .cart-totals h2 { margin-top: 0; }
-    .data-list { margin-top: 0; } .data-list li { display: grid; grid-template-columns: 6rem minmax(0, 1fr) auto; align-items: start; position: relative; padding: 1.25rem 3.5rem 1.25rem 1.25rem; gap: 1rem; }
-    .line-copy { display: flex; flex-direction: column; gap: .4rem; min-width: 0; } strong, .kitchen-comment { overflow-wrap: anywhere; } .comment-action { align-self: flex-start; padding: 0; } .kitchen-comment { font-size: .9rem; color: #526775; white-space: pre-wrap; }
+    .data-list { margin-top: 0; } .data-list li { display: grid; grid-template-columns: 6rem minmax(0, 1fr) auto; align-items: start; position: relative; padding: 1.25rem; gap: 1rem; }
+    .line-copy { padding-right: 1.25rem; display: flex; flex-direction: column; gap: .4rem; min-width: 0; } strong, .kitchen-comment { overflow-wrap: anywhere; } .comment-label { display: block; font-weight: 600; } .comment-action { align-self: flex-start; padding: .5rem .75rem; } .kitchen-comment { font-size: .9rem; color: #526775; white-space: pre-wrap; }
     .line-controls { display: grid; justify-items: end; gap: .6rem; min-width: 0; width: 23rem; max-width: 100%; } .entry-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; width: 100%; } .control-field { display: grid; gap: .4rem; min-width: 0; } .control-field > span { font-size: .85rem; } .remove-item { position: absolute; right: .1rem; top: .1rem; color: #181818; }
     .actions { display: flex; gap: .5rem; } label { display: grid; gap: .4rem; } input { width: 8rem; max-width: 100%; padding: .7rem; font: inherit; border: 1px solid #829aa9; border-radius: .35rem; background: transparent; }
     .line-copy strong a { color: inherit; text-decoration: none; } .line-copy strong a:hover { text-decoration: underline; }

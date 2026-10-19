@@ -36,7 +36,7 @@ describe('open-price dialog', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Unit price (USD)');
     expect(fixture.nativeElement.querySelector('app-price-input')).toBeNull();
     expect(fixture.nativeElement.querySelector('.fixed-price').textContent).toBe('7.50 USD');
-    expect(fixture.nativeElement.querySelector('app-item-image img').alt).toBe(fixed.name);
+    expect(fixture.nativeElement.querySelector('app-item-image [role=img]').getAttribute('aria-label')).toBe(fixed.name + ' — no image available');
     dialog.quantity.setValue('3'); dialog.add(); TestBed.tick();
     http.expectOne('/api/menu/resolve').error(new ProgressEvent('error'));
     const reopened = TestBed.createComponent(OpenPriceDialog); reopened.detectChanges();

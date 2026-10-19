@@ -14,7 +14,7 @@ export const storedCartSchema = z.strictObject({
 });
 export type StoredCart = z.infer<typeof storedCartSchema>;
 export type CartEntry = StoredCart['lines'][number];
-export const emptyCart = (): StoredCart => ({ version: 1, lines: [], discountText: '0.00' });
+export const emptyCart = (): StoredCart => ({ version: 1, lines: [], discountText: '' });
 export function moneyText(minor: number) { return (minor / 100).toFixed(2); }
 export function quantityValue(text: string) {
   if (!/^[0-9]{1,2}$/.test(text)) throw new Error('Enter a whole quantity from 1 to 99.');
@@ -32,7 +32,7 @@ export function estimateCart(lines: CartEntry[], discountText: string) {
   if (lines.some(entryInputIssue)) return { subtotalMinor: null, totalMinor: null, discountMinor: null, error: 'Correct cart line inputs to calculate the estimate.' };
   const subtotalMinor = lines.reduce((sum, line) => sum + calculateLineTotal(entryPrice(line), quantityValue(line.quantityText)), 0);
   try {
-    const discountMinor = parseDecimalMinor(discountText);
+    const discountMinor = parseDecimalMinor(discountText === '' ? '0' : discountText);
     if (discountMinor > subtotalMinor) return { subtotalMinor, totalMinor: null, discountMinor, error: 'Discount cannot exceed the estimated subtotal.' };
     return { ...calculateTotals([subtotalMinor], discountMinor), error: null };
   } catch { return { subtotalMinor, totalMinor: null, discountMinor: null, error: 'Enter a nonnegative discount with at most two decimal places.' }; }
@@ -59,4 +59,9 @@ export function entryChanges(line: CartEntry, resolved?: ResolvedItem): string[]
 }
 export function newEntry(item: MenuItem, quantityText: string, priceText: string, comment = ''): CartEntry {
   return { id: crypto.randomUUID(), item, quantityText, priceText, ...(comment ? { comment } : {}) };
+}
+
+/** Sum valid quantities consistently across cart headings, navigation and footer. */
+export function cartItemCount(lines: readonly { quantityText: string }[]) {
+  return lines.reduce((sum, line) => { try { return sum + quantityValue(line.quantityText); } catch { return sum; } }, 0);
 }

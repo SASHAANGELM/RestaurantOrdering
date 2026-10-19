@@ -4,6 +4,7 @@ import { MatButton } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogActions, MatDialogContent, MatDialogRef, MatDialogTitle } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatTooltip } from '@angular/material/tooltip';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 import type { MenuItem } from '@restaurant-ordering/contracts';
@@ -16,7 +17,7 @@ import { CartStore } from './cart.store';
 
 @Component({
   selector: 'app-open-price-dialog', changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, UnitPriceField, QuantityInput, ItemImage, ReactiveFormsModule, MatButton, MatDialogTitle, MatDialogContent, MatDialogActions, MatFormFieldModule, MatInput, MatSelectModule],
+  imports: [MatTooltip, RouterLink, UnitPriceField, QuantityInput, ItemImage, ReactiveFormsModule, MatButton, MatDialogTitle, MatDialogContent, MatDialogActions, MatFormFieldModule, MatInput, MatSelectModule],
   template: `
     <h2 mat-dialog-title id="open-price-title">{{ selected() ? 'Edit in cart' : 'Add to cart' }}</h2>
     <mat-dialog-content><div class="dialog-item"><app-item-image [src]="data.item.imageUrl" [name]="data.item.name" /><strong>{{ data.item.name }}</strong></div>
@@ -34,7 +35,7 @@ import { CartStore } from './cart.store';
       @if (message()) { <p role="alert">{{ message() }}</p> }
       @if (selected() && selected()?.item?.pricingMode !== data.item.pricingMode) { <a mat-button routerLink="/cart" (click)="dialog.close()">Review changed pricing in Cart</a> }
       @if (commentOpen()) {
-        <div class="comment-heading"><span>Comment for the kitchen</span><button mat-button class="icon-button" aria-label="Remove comment" title="Remove comment" [disabled]="cart.checkoutLocked()" (click)="removeComment()"><i class="ti ti-x" aria-hidden="true"></i></button></div>
+        <div class="comment-heading"><span>Comment for the kitchen</span><button mat-button class="icon-button" aria-label="Remove comment" matTooltip="Remove comment" [disabled]="cart.checkoutLocked()" (click)="removeComment()"><i class="ti ti-x" aria-hidden="true"></i></button></div>
         <mat-form-field appearance="outline"><mat-label>Comment for the kitchen</mat-label><textarea matInput [formControl]="comment" maxlength="500" rows="3" placeholder="For example, no mustard"></textarea></mat-form-field>
       } @else {
         @if (comment.value) { <p class="comment-preview">Comment: {{ comment.value }}</p> }

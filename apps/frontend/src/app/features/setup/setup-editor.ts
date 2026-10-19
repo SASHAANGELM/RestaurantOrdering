@@ -1,10 +1,10 @@
 import { BusyButton } from '../../shared/busy-button';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
 import { MatSlideToggle } from '@angular/material/slide-toggle';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -15,6 +15,8 @@ import {
 import { ApiClient, clientError, type ClientError } from '../../core/api-client';
 import { RealtimeSync } from '../../core/realtime-sync';
 import { setupErrorMessage } from './setup-error';
+import { ItemImage } from '../../shared/item-image';
+import { ItemImageGallery } from './item-image-gallery';
 
 export interface SetupEditorData {
   kind: 'category' | 'item';
@@ -26,12 +28,14 @@ export interface SetupEditorData {
 
 @Component({
   selector: 'app-setup-editor',
-  imports: [BusyButton, ReactiveFormsModule, MatButton, MatSlideToggle, MatDialogModule, MatFormFieldModule, MatInput, MatSelectModule],
+  imports: [ItemImage, BusyButton, ReactiveFormsModule, MatButton, MatSlideToggle, MatDialogModule, MatFormFieldModule, MatInput, MatSelectModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
     form { display: grid; gap: .75rem; padding-top: .5rem; }
     mat-form-field { width: 100%; }
     .error-panel { overflow-wrap: anywhere; }
+    .image-preview { position: relative; margin-bottom: .5rem; }
+    .image-preview button { position: absolute; bottom: .75rem; right: .75rem; box-shadow: 0 2px 8px #0003; }
   `],
   template: `
     <h2 mat-dialog-title id="setup-editor-title">{{ title }}</h2>
@@ -61,6 +65,12 @@ export interface SetupEditorData {
         </div>
       } @else {
         <form id="setup-form" [formGroup]="form" (ngSubmit)="save()">
+          @if (data.kind === 'item') {
+            <div class="image-preview">
+              <app-item-image class="preview" [src]="imageUrl()" [name]="form.controls.name.value || 'Item image'" />
+              <button mat-flat-button type="button" [disabled]="busy() || conflict() || !!entity()?.archivedAt" (click)="chooseImage()"><i class="ti ti-edit" aria-hidden="true"></i> Edit image</button>
+            </div>
+          }
           <mat-form-field appearance="outline"><mat-label><i class="ti ti-tag" aria-hidden="true"></i> Name</mat-label><input matInput formControlName="name" maxlength="120" required /></mat-form-field>
           @if (data.kind === 'category') {
             <mat-form-field appearance="outline"><mat-label><i class="ti ti-arrows-sort" aria-hidden="true"></i> Sort order</mat-label><input matInput type="number" formControlName="sortOrder" step="1" required /></mat-form-field>
@@ -73,7 +83,6 @@ export interface SetupEditorData {
               </mat-select>
             </mat-form-field>
             <mat-form-field appearance="outline"><mat-label><i class="ti ti-align-left" aria-hidden="true"></i> Description</mat-label><textarea matInput formControlName="description" maxlength="2000" rows="3"></textarea></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label><i class="ti ti-photo" aria-hidden="true"></i> Image URL</mat-label><input matInput formControlName="imageUrl" maxlength="2048" /><mat-hint>A backend /api/images/ path or an HTTPS image URL</mat-hint></mat-form-field>
             <mat-form-field appearance="outline"><mat-label><i class="ti ti-coin" aria-hidden="true"></i> Pricing</mat-label>
               <mat-select formControlName="pricingMode"><mat-option value="fixed">Fixed price</mat-option><mat-option value="open">Open price</mat-option></mat-select>
             </mat-form-field>
@@ -107,6 +116,7 @@ export class SetupEditor {
   private readonly api = inject(ApiClient);
   private readonly sync = inject(RealtimeSync);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dialogs = inject(MatDialog);
   readonly entity = signal(this.data.entity);
   readonly categories = signal(this.data.categories);
   readonly busy = signal(false);
@@ -135,7 +145,18 @@ export class SetupEditor {
     available: new FormControl(true, { nonNullable: true })
   });
 
+  readonly imageUrl = toSignal(this.form.controls.imageUrl.valueChanges, { initialValue: '' });
+
   constructor() { this.fill(this.data.entity); }
+
+  chooseImage() {
+    if (this.busy() || this.conflict() || this.entity()?.archivedAt) return;
+    this.dialogs.open(ItemImageGallery, { data: this.form.controls.imageUrl.value, width: '42rem', maxWidth: 'calc(100vw - 2rem)',
+      ariaLabelledBy: 'image-gallery-title', autoFocus: 'first-tabbable', restoreFocus: true })
+      .afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((image: string | undefined) => {
+        if (image !== undefined && !this.busy() && !this.conflict() && !this.entity()?.archivedAt) this.form.controls.imageUrl.setValue(image);
+      });
+  }
 
   conflict() { return this.error()?.body?.code === 'REVISION_CONFLICT' || this.error()?.body?.code === 'INVALID_ITEM_TRANSITION'; }
 
@@ -195,7 +216,7 @@ export class SetupEditor {
         ...(value.imageUrl.trim() ? { imageUrl: value.imageUrl.trim() } : {}),
         ...(value.pricingMode === 'open' ? { pricingMode: 'open' } : { pricingMode: 'fixed', priceMinor: price.data }) });
       if (!result.success || !this.categories().some((c) => c.id === value.categoryId && c.archivedAt === null)) {
-        this.message.set('Enter a name of 1–120 characters, a description up to 2,000 characters, and choose an active category and a valid image URL. Your input is retained.'); return;
+        this.message.set('Enter a name of 1–120 characters, a description up to 2,000 characters, and choose an active category. Your input is retained.'); return;
       }
       this.run(entity
         ? this.api.updateItem(entity.id, { ...result.data, ...(value.imageUrl.trim() ? {} : { imageUrl: null }), expectedRevision: entity.revision }).pipe(map((r) => r.menuRevision))

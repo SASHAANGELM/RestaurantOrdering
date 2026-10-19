@@ -30,7 +30,7 @@ test('quantity dialogs edit/remove existing entries and confirmed clearing works
   await expect(summary).toContainText('2 items'); await summary.getByRole('button', { name: 'Clear cart', exact: true }).click();
   await dialog.getByRole('button', { name: 'Clear cart', exact: true }).click(); await expect(summary).toHaveCount(0);
   await addFromMenu(page, name, '2'); await summary.getByRole('link', { name: 'View cart' }).click();
-  const cart = page.getByRole('region', { name: 'Your cart' });
+  const cart = page.getByRole('region', { name: /\d+ items? in your cart/ });
   await cart.getByText('Add a discount', { exact: true }).click(); await cart.getByRole('textbox', { name: 'Fixed discount (USD)' }).fill('1.00');
   const left = (await page.locator('.cart-items').boundingBox())!; const right = (await page.getByRole('complementary', { name: 'Order summary' }).boundingBox())!;
   expect(right.x).toBeGreaterThan(left.x + left.width); expect(Math.abs(right.y - left.y)).toBeLessThan(2);
@@ -38,7 +38,7 @@ test('quantity dialogs edit/remove existing entries and confirmed clearing works
   await cart.getByRole('button', { name: 'Clear cart', exact: true }).click(); await dialog.getByRole('button', { name: 'Clear cart', exact: true }).click();
   await expect(cart).toContainText('Your cart is empty'); await expect(cart.getByRole('textbox', { name: 'Fixed discount (USD)' })).toHaveCount(0);
   await expect(cart.getByText('Estimated total', { exact: true })).toHaveCount(0); await expect(cart.getByRole('button', { name: 'Review order' })).toHaveCount(0);
-  const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('restaurant-ordering.cart.v1')!)); expect(saved.discountText).toBe('0.00'); expect(saved.lines).toEqual([]);
+  const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('restaurant-ordering.cart.v1')!)); expect(saved.discountText).toBe(''); expect(saved.lines).toEqual([]);
 });
 
 test('available category counts follow search across pages, unavailable dishes are faded and last, and only the page scrolls', async ({ page, request }) => {
@@ -56,18 +56,21 @@ test('available category counts follow search across pages, unavailable dishes a
   await page.getByRole('textbox', { name: 'Search menu' }).fill(`${name} Z available`); await expect(categoryButton.locator('.category-count')).toHaveText('12');
 });
 
-test('header navigation, compact connection indicator and actual menu timestamps recover from offline mode', async ({ page, context, request }, testInfo) => {
+test('header navigation, combined connection status and actual menu timestamps recover from offline mode', async ({ page, context, request }, testInfo) => {
   const { name, item } = await fixture(request); await menu(page, name);
   const indicator = page.getByRole('button', { name: 'Connection details', exact: true }); await expect(indicator).toHaveAttribute('title', 'Connected');
-  const bounds = (await indicator.boundingBox())!; expect(bounds.width).toBe(16); expect(bounds.height).toBe(16); expect(bounds.x).toBeGreaterThan(1200);
+  await expect(indicator).toContainText('Connected'); await expect(indicator).toContainText('Last checked');
+  await expect(page.locator('.connection-indicator')).toHaveCount(0);
+  const dot = indicator.locator('.connection-dot');
+  expect(await dot.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(38, 131, 71)');
   await expect(page.locator('mat-toolbar').getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link').last()).toHaveText('Settings');
-  expect(await indicator.evaluate(element => getComputedStyle(element).animationName)).toMatch(/connection-pulse$/);
+  expect(await indicator.evaluate(element => getComputedStyle(element).position)).toBe('static');
   expect(await page.locator('.sync-banner').evaluate(element => !!(element.compareDocumentPosition(document.querySelector('main')!) & Node.DOCUMENT_POSITION_PRECEDING))).toBe(true);
   const timestamp = page.locator('.sync-banner time'); await expect(timestamp).toBeVisible(); const previous = await timestamp.getAttribute('datetime');
-  await context.setOffline(true); await expect(indicator).toHaveAttribute('title', 'Offline'); await expect(page.locator('.sync-banner')).toContainText('Offline');
+  await context.setOffline(true); await expect(indicator).toHaveAttribute('title', 'Disconnected'); await expect(page.locator('.sync-banner')).toContainText('Offline');
   await expect(timestamp).toHaveAttribute('datetime', previous!);
-  expect(await indicator.evaluate(element => getComputedStyle(element).animationName)).toBe('none');
+  expect(await dot.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(179, 38, 30)');
   await context.setOffline(false); await expect(indicator).toHaveAttribute('title', 'Connected');
   let release!: () => void; const gate = new Promise<void>((resolve) => { release = resolve; });
   await page.route('**/api/menu/catalog', async (route) => { await gate; await route.continue(); });

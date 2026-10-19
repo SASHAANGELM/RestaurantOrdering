@@ -24,7 +24,7 @@ test('cart preserves open-price lines, drafts, route/reload state and off-page r
   const { name, fixed, open, category } = await fixture(request);
   await page.goto('/menu'); await search(page, name);
   const menu = page.getByRole('region', { name: 'Menu items' });
-  const cart = page.getByRole('region', { name: 'Your cart' });
+  const cart = page.getByRole('region', { name: /\d+ items? in your cart/ });
   await expect(menu.getByRole('listitem')).toHaveCount(2);
   await addFromMenu(page, fixed.name, '2');
   await page.getByRole('button', { name: `Add ${open.name} to cart`, exact: true }).click();
@@ -59,7 +59,7 @@ test('cart preserves open-price lines, drafts, route/reload state and off-page r
   const other = await page.context().newPage();
   try {
     await other.goto('/cart');
-    await expect(other.getByRole('region', { name: 'Your cart' })).toContainText('Your cart is empty');
+    await expect(other.getByRole('region', { name: /\d+ items? in your cart/ })).toContainText('Your cart is empty');
     // The cart's fixed item is outside the visible search; notifications must use /resolve.
     await search(page, open.name); await expect(menu.getByRole('listitem')).toHaveCount(1);
     expect((await request.patch(`/api/setup/items/${fixed.id}`, { data: { expectedRevision: 1, pricingMode: 'fixed', priceMinor: 900, available: false } })).ok()).toBe(true);
@@ -114,17 +114,17 @@ test('corrupt and unavailable sessionStorage show recovery notices and allow in-
   const { fixed } = await fixture(request);
   await page.addInitScript(() => sessionStorage.setItem('restaurant-ordering.cart.v1', '{broken'));
   await page.goto('/cart');
-  await expect(page.getByRole('region', { name: 'Your cart' })).toContainText('Saved cart could not be restored');
+  await expect(page.getByRole('region', { name: /\d+ items? in your cart/ })).toContainText('Saved cart could not be restored');
   await search(page, fixed.name); await addFromMenu(page, fixed.name);
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Your cart' }).getByRole('listitem')).toHaveCount(1);
+  await expect(page.getByRole('region', { name: /\d+ items? in your cart/ }).getByRole('listitem')).toHaveCount(1);
   const context = await browser.newContext({ baseURL });
   try {
     await context.addInitScript(() => Object.defineProperty(window, 'sessionStorage', { get() { throw new Error('Storage unavailable'); } }));
     const noStorage = await context.newPage(); await noStorage.goto('/menu'); await search(noStorage, fixed.name);
     await addFromMenu(noStorage, fixed.name);
     await noStorage.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
-    const cart = noStorage.getByRole('region', { name: 'Your cart' });
+    const cart = noStorage.getByRole('region', { name: /\d+ items? in your cart/ });
     await expect(cart).toContainText('Cart changes cannot be saved'); await expect(cart.getByRole('listitem')).toHaveCount(1);
     await cart.getByRole('spinbutton', { name: `Cart quantity for ${fixed.name}`, exact: true }).fill('3');
     await expect(cart.locator('dl .total')).toContainText('$22.50');

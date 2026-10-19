@@ -1,26 +1,26 @@
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { ApiClient, clientError } from '../../core/api-client';
-import { setupErrorMessage } from './setup-error';
-import { RealtimeSync } from '../../core/realtime-sync';
 import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
 import { MatCheckbox } from '@angular/material/checkbox';
-import { MatSlideToggle, type MatSlideToggleChange } from '@angular/material/slide-toggle';
-import { ItemImage } from '../../shared/item-image';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatTooltip } from '@angular/material/tooltip';
 import { MatInput } from '@angular/material/input';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggle, type MatSlideToggleChange } from '@angular/material/slide-toggle';
+import { MatTooltip } from '@angular/material/tooltip';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import type { Category, MenuItem } from '@restaurant-ordering/contracts';
-import { PageHeading } from '../../shared/page-heading';
+import { ApiClient, clientError } from '../../core/api-client';
+import { RealtimeSync } from '../../core/realtime-sync';
 import { Breadcrumbs } from '../../shared/breadcrumbs';
+import { ItemImage } from '../../shared/item-image';
 import { LoadState } from '../../shared/load-state';
+import { PageHeading } from '../../shared/page-heading';
 import { SetupEditor } from './setup-editor';
+import { setupErrorMessage } from './setup-error';
 import { SetupStore, type ItemGroup } from './setup.store';
 
 @Component({
@@ -154,7 +154,7 @@ export class CatalogPage {
   edit(kind: 'category' | 'item', entity?: Category | MenuItem, restore = false) {
     if (this.dialog.getDialogById('setup-editor')) return;
     this.dialog.open(SetupEditor, { id: 'setup-editor', ariaLabelledBy: 'setup-editor-title', width: '36rem', maxWidth: 'calc(100vw - 2rem)',
-      autoFocus: 'first-tabbable', restoreFocus: true,
+      autoFocus: restore ? 'first-tabbable' : 'input[formControlName="name"]', restoreFocus: true,
       data: { kind, entity, restore, categories: this.store.categories() ?? [] }
     }).afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((saved: boolean | undefined) => { if (saved) this.store.reload(); });
   }

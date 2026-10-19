@@ -16,7 +16,7 @@ async function add(page: Page, name: string) {
   await addFromMenu(page, name);
   await page.getByRole('link', { name: 'View cart', exact: true }).first().click();
 }
-const cart = (page: Page) => page.getByRole('region', { name: 'Your cart' });
+const cart = (page: Page) => page.getByRole('region', { name: /\d+ items? in your cart/ });
 
 test('one confirm click checks current prices and places the order; late menu changes retain the cart for retry', async ({ page, request }) => {
   const item = await fixture(request); await add(page, item.name);

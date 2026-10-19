@@ -1,11 +1,13 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category, MenuItem } from '@restaurant-ordering/contracts';
 import { RealtimeSync } from '../../core/realtime-sync';
 import { SetupEditor, type SetupEditorData } from './setup-editor';
+import { ItemImageGallery } from './item-image-gallery';
 
 const categoryId = '11111111-1111-4111-8111-111111111111';
 const itemId = '22222222-2222-4222-8222-222222222222';
@@ -39,6 +41,26 @@ describe('Setup editor', () => {
       details: { entityType: 'item', entityId: itemId, expectedRevision: 1, currentRevision: 2 }
     } }, { status: 409, statusText: 'Conflict' });
   }
+
+  it('keeps image selection in the draft, preserves it on gallery cancel and explicitly clears a saved image', () => {
+    const { component, fixture } = editor({ entity: { ...item, imageUrl: '/api/images/soup.jpg' } });
+    const closed = new Subject<string | undefined>();
+    const open = vi.spyOn(fixture.debugElement.injector.get(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+    expect(fixture.nativeElement.querySelector('input[formControlName="imageUrl"]')).toBeNull();
+    component.chooseImage();
+    expect(open).toHaveBeenCalledWith(ItemImageGallery, expect.objectContaining({ data: '/api/images/soup.jpg', restoreFocus: true }));
+    closed.next(undefined); expect(component.form.controls.imageUrl.value).toBe('/api/images/soup.jpg');
+    closed.next('/api/images/bread.jpg'); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.image-preview img').getAttribute('src')).toBe('/api/images/bread.jpg');
+    closed.next(''); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.image-preview .placeholder')).not.toBeNull();
+    http.expectNone(() => true);
+    component.save();
+    const request = http.expectOne(`/api/setup/items/${itemId}`);
+    expect(request.request.body).toMatchObject({ imageUrl: null, expectedRevision: 1 });
+    request.flush({ item: { ...item, revision: 2 }, menuRevision: 2 });
+    closed.complete(); open.mockRestore();
+  });
 
   it('keeps archival inside editing and requires explicit confirmation without submitting the draft', () => {
     const { component, fixture } = editor({ entity: { ...item, available: false } });

@@ -6,7 +6,7 @@ import { ApiClient } from '../../core/api-client';
 import { RealtimeSync } from '../../core/realtime-sync';
 import { remoteQuery } from '../../core/remote-query';
 import {
-  CART_STORAGE_KEY, emptyCart, entryChanges, entryEligibilityIssue, entryPricingWarning, entryInputIssue, entryPrice, estimateCart, moneyText,
+  CART_STORAGE_KEY, cartItemCount, emptyCart, entryChanges, entryEligibilityIssue, entryPricingWarning, entryInputIssue, entryPrice, estimateCart, moneyText,
   newEntry, quantityValue, storedCartSchema, type StoredCart
 } from './cart.model';
 
@@ -29,6 +29,7 @@ export const CartStore = signalStore(
   withState(() => ({ ...restore(inject(CART_STORAGE)), checkoutLocked: false, intentRevision: 0 })),
   withComputed((store) => ({
     itemIds: computed(() => [...new Set(store.lines().map((line) => line.item.id))].sort(), { equal: (a, b) => JSON.stringify(a) === JSON.stringify(b) }),
+    count: computed(() => cartItemCount(store.lines())),
     estimate: computed(() => estimateCart(store.lines(), store.discountText()))
   })),
   withProps((store, api = inject(ApiClient), sync = inject(RealtimeSync)) => ({

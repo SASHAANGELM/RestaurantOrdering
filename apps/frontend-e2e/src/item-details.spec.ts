@@ -110,7 +110,7 @@ test('item names on Menu, Cart and Items open details with live, paginated relat
   await expect(related).toContainText('Page 2'); await expect(related.getByRole('listitem')).toHaveCount(1);
   await related.getByRole('link', { name: `Order ${original.id.slice(0, 8)}`, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/orders/${original.id}$`));
-  await page.goto('/cart'); await page.getByRole('region', { name: 'Your cart' }).getByRole('link', { name, exact: true }).click();
+  await page.goto('/cart'); await page.getByRole('region', { name: /\d+ items? in your cart/ }).getByRole('link', { name, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/items/${item.id}$`));
   const renamed = `${name} renamed`;
   expect((await request.patch(`/api/setup/items/${item.id}`, { data: { expectedRevision: 1, name: renamed, available: false } })).ok()).toBe(true);
