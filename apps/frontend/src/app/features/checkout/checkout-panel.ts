@@ -49,7 +49,8 @@ export class CheckoutPanel {
     if (cart.estimate().error) return cart.estimate().error;
     if (cart.resolved.loading() || cart.resolved.stale()) return 'Checking current prices and availability…';
     if (cart.resolved.error()) return 'Availability could not be checked. Reconnect or retry the failed check.';
-    const issue = cart.entries().flatMap(line => line.changes).find(change => change.includes('cannot be ordered') || change.includes('Pricing mode changed'));
+    if (cart.entries().some(line => !!line.pricingWarning)) return 'Review changed prices and select OK on each warning before confirming.';
+    const issue = cart.entries().map(line => line.eligibilityIssue).find(issue => issue?.includes('cannot be ordered'));
     if (issue) return issue + ' Remove or replace the affected item to continue.';
     if (this.sync.syncing() || this.sync.error()) return 'Waiting for a successful connection check before placing your order.';
     return null;

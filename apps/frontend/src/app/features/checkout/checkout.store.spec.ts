@@ -90,6 +90,18 @@ describe('explicit quote review and frozen checkout recovery', () => {
     check.flush(quote()); tick(); http.expectNone('/api/orders'); expect(checkout.message()).toContain('changed');
   });
 
+  it('requires price acknowledgment when an authoritative quote discovers a missed monetary update', () => {
+    const { checkout, cart } = setup(); cart.add(item, '1'); tick(); checkout.placeOrder();
+    http.expectOne('/api/checkout/quotes').flush(quote({ menuRevision: 2,
+      lines: [{ ...quote().lines[0]!, itemRevision: 2, unitPriceMinor: 150, lineTotalMinor: 150 }], subtotalMinor: 150, totalMinor: 150 }));
+    TestBed.tick(); http.expectOne('/api/menu/resolve').flush({ menuRevision: 2, items: [{ itemId, state: 'available',
+      item: { ...item, revision: 2, priceMinor: 150 }, category: { id: categoryId, name: 'Lunch', sortOrder: 0, revision: 1, archivedAt: null, createdAt: timestamp, updatedAt: timestamp } }] });
+    TestBed.tick();
+    expect(checkout.quote()).toBeNull(); expect(checkout.message()).toContain('select OK'); expect(checkout.canReview()).toBe(false);
+    checkout.placeOrder(); http.expectNone('/api/orders'); http.expectNone('/api/checkout/quotes');
+    expect(cart.acknowledgePrice(cart.lines()[0]!.id)).toBeNull(); TestBed.tick(); expect(checkout.canReview()).toBe(true);
+  });
+
   it('sends observed values and exact open prices, preserving separate lines, discounts and zero totals', () => {
     const { checkout, cart } = setup();
     cart.add(item, '1'); cart.add({ ...item, pricingMode: 'open', priceMinor: null }, '2', '0.25');

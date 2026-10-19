@@ -75,18 +75,16 @@ describe('feature query and revision ordering', () => {
     sync.observe({ menuRevision: 5 }); TestBed.tick(); http.expectNone(() => true); expect(socket.listenerCount).toBe(6);
   });
 
-  it('keeps Setup queries and archived visibility together', () => {
+  it('keeps Setup search, archived visibility and all group pages local without cancelling the snapshot', () => {
     const store = TestBed.inject(SetupStore); TestBed.tick();
-    const oldItems = http.expectOne((r) => r.url === '/api/setup/items');
-    const oldCategories = http.expectOne((r) => r.url === '/api/setup/categories');
-    store.setQuery({ page: 2, pageSize: 25, includeArchived: true }); TestBed.tick();
-    expect(oldItems.cancelled).toBe(true); expect(oldCategories.cancelled).toBe(true);
-    const current = http.expectOne((r) => r.url === '/api/setup/items');
-    expect(current.request.params.get('includeArchived')).toBe('true');
-    expect(current.request.params.get('page')).toBe('2');
-    http.expectOne('/api/setup/categories?includeArchived=true').flush({ categories: [], menuRevision: 1 });
-    current.flush({ items: [], total: 0, page: 2, pageSize: 25, menuRevision: 1 }); TestBed.tick();
-    expect(store.items.data()?.page).toBe(2);
+    const request = http.expectOne('/api/setup/catalog');
+    store.setQuery({ page: 1, pageSize: 25, includeArchived: true, search: 'soup' }); TestBed.tick();
+    expect(request.cancelled).toBe(false);
+    request.flush({ categories: [], items: page(1).items, menuRevision: 1 }); TestBed.tick();
+    expect(store.groups()[0]?.total).toBe(1);
+    store.page('available', 2, 10); store.setQuery({ ...store.query(), search: 'missing' }); TestBed.tick();
+    expect(store.groups().map(group => group.total)).toEqual([0, 0, 0]);
+    http.expectNone(() => true);
   });
 
   it('cancels old order filters and refreshes membership/counts on order revisions', () => {

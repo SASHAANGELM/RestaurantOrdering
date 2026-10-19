@@ -41,9 +41,8 @@ export interface SetupEditorData {
         @if (data.kind === 'category') {
           <p>Available, nonarchived items in this category will return to Menu and can be ordered again. Individually archived items stay archived.</p>
         } @else {
-          <p>This item will return to Menu when its category is active. Its availability setting is preserved.</p>
+          <p>This item will be restored as unavailable. Enable availability separately when it is ready to order.</p>
           @if (itemCategoryArchived()) { <p role="status">This item's category is archived. Restore the category before this item can be ordered.</p> }
-          @if (entity(); as record) { @if ('available' in record && !record.available) { <p role="status">This item is unavailable. Enable availability after restoring to allow ordering.</p> } }
         }
         <p>Existing orders keep their original details.</p>
         @if (!entity()?.archivedAt) { <p role="status">This record is already active. Close this dialog to continue.</p> }
@@ -57,8 +56,8 @@ export interface SetupEditorData {
         } @else {
           <p>This item will disappear from Menu and cannot be ordered, including from existing carts.</p>
         }
-        <p>Existing orders keep their original details. You can restore this record later by showing archived records in Settings.</p><div class="dialog-confirm-actions"><button mat-button [disabled]="busy()" (click)="dialog.close()">Cancel</button>
-        <button [appBusy]="busy()" mat-flat-button class="danger-button" [disabled]="busy() || !!entity()?.archivedAt || conflict()" (click)="save()">{{ busy() ? 'Archiving…' : 'Archive' }}</button>
+        <p>Existing orders keep their original details. You can restore this record later from archived records in Settings.</p><div class="dialog-confirm-actions"><button mat-button [disabled]="busy()" (click)="dialog.close()">Cancel</button>
+        <button [appBusy]="busy()" mat-flat-button class="danger-button" [disabled]="busy() || !canArchive() || conflict()" (click)="save()">{{ busy() ? 'Archiving…' : 'Archive' }}</button>
         </div>
       } @else {
         <form id="setup-form" [formGroup]="form" (ngSubmit)="save()">
@@ -88,11 +87,13 @@ export interface SetupEditorData {
       }
       @if (message(); as text) { <p class="error-panel" role="alert">{{ text }}</p> }
       @if (error()?.body; as body) { <p class="muted">Request reference: {{ body.requestId }}</p> }
-      @if (error()?.body?.code === 'REVISION_CONFLICT' || error()?.body?.code === 'CATEGORY_ARCHIVED') {
+      @if (conflict() || error()?.body?.code === 'CATEGORY_ARCHIVED') {
         <button [appBusy]="busy()" mat-stroked-button [disabled]="busy()" (click)="reloadLatest()">Reload latest values</button>
       }
-      @if (!restoring && entity()?.archivedAt) { <p role="status">This record is archived. Close this dialog and show archived records in Settings to restore it.</p> }
-      @if (!restoring && !archiving() && entity() && !entity()?.archivedAt) { <div class="danger-zone"><p>Archiving removes this {{ data.kind }} from the menu.</p><button mat-stroked-button class="danger-button" [disabled]="busy() || conflict()" (click)="beginArchive()">Archive {{ data.kind }}</button></div> }
+      @if (!restoring && entity()?.archivedAt) { <p role="status">This record is archived. Close this dialog and open archived records in Settings to restore it.</p> }
+      @if (!restoring && !archiving() && entity() && !entity()?.archivedAt) { <div class="danger-zone"><p>Archiving removes this {{ data.kind }} from the menu.</p>
+        @if (!canArchive()) { <p>Mark this item as unavailable and save before archiving it.</p> }
+        <button mat-stroked-button class="danger-button" [disabled]="busy() || conflict() || !canArchive()" (click)="beginArchive()">Archive {{ data.kind }}</button></div> }
     </mat-dialog-content>
     @if (!restoring && !archiving()) { <mat-dialog-actions align="end">
       <button mat-button [disabled]="busy()" (click)="dialog.close()"><i class="ti ti-x" aria-hidden="true"></i> Cancel</button>
@@ -118,7 +119,11 @@ export class SetupEditor {
     const entity = this.entity();
     return entity && 'categoryId' in entity && !this.categories().some((category) => category.id === entity.categoryId && category.archivedAt === null);
   }
-  beginArchive() { if (!this.busy() && this.entity() && !this.entity()?.archivedAt) { this.archiving.set(true); this.message.set(''); } }
+  canArchive() {
+    const entity = this.entity();
+    return !!entity && !entity.archivedAt && (!('available' in entity) || !entity.available);
+  }
+  beginArchive() { if (!this.busy() && this.canArchive()) { this.archiving.set(true); this.message.set(''); } }
   readonly form = new FormGroup({
     name: new FormControl('', { nonNullable: true }),
     sortOrder: new FormControl<number | null>(0),
@@ -132,7 +137,7 @@ export class SetupEditor {
 
   constructor() { this.fill(this.data.entity); }
 
-  conflict() { return this.error()?.body?.code === 'REVISION_CONFLICT'; }
+  conflict() { return this.error()?.body?.code === 'REVISION_CONFLICT' || this.error()?.body?.code === 'INVALID_ITEM_TRANSITION'; }
 
   private fill(entity?: Category | MenuItem) {
     this.form.reset({ name: entity?.name ?? '', sortOrder: entity && 'sortOrder' in entity ? entity.sortOrder : 0,
@@ -163,6 +168,7 @@ export class SetupEditor {
   save() {
     if (this.busy() || this.conflict()) return;
     if (this.restoring ? !this.entity()?.archivedAt : this.entity()?.archivedAt) return;
+    if (this.archiving() && !this.canArchive()) return;
     this.error.set(null); this.message.set('');
     const entity = this.entity();
     if ((this.archiving() || this.restoring) && entity) {

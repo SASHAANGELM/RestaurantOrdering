@@ -19,12 +19,12 @@ test('quantity dialogs edit/remove existing entries and confirmed clearing works
   const button = card.getByRole('button', { name: `Add ${name} to cart`, exact: true });
   const bounds = (await card.boundingBox())!; expect((await button.boundingBox())!.width).toBeGreaterThan(bounds.width - 40);
   await addFromMenu(page, name, '2');
-  await button.click(); let dialog = page.getByRole('dialog', { name: 'Set quantity', exact: true });
+  await button.click(); let dialog = page.getByRole('dialog', { name: /^(Add to cart|Edit in cart)$/, exact: true });
   await expect(dialog.getByRole('spinbutton', { name: 'Quantity', exact: true })).toHaveValue('2');
   await expect(dialog.getByRole('textbox', { name: 'Unit price (USD)' })).toHaveCount(0);
-  await dialog.getByRole('spinbutton', { name: 'Quantity', exact: true }).fill('3'); await dialog.getByRole('button', { name: 'Update cart' }).click();
+  await dialog.getByRole('spinbutton', { name: 'Quantity', exact: true }).fill('3'); await dialog.getByRole('button', { name: 'Edit in cart' }).click();
   const summary = page.getByRole('region', { name: 'Cart summary' }); await expect(summary).toContainText('3 items');
-  await button.click(); await dialog.getByRole('spinbutton', { name: 'Quantity', exact: true }).fill('0'); await dialog.getByRole('button', { name: 'Update cart' }).click(); await page.getByRole('dialog', { name: 'Remove item?' }).getByRole('button', { name: 'Remove', exact: true }).click(); await expect(summary).toHaveCount(0);
+  await button.click(); await dialog.getByRole('spinbutton', { name: 'Quantity', exact: true }).fill('0'); await dialog.getByRole('button', { name: 'Edit in cart' }).click(); await page.getByRole('dialog', { name: 'Remove item?' }).getByRole('button', { name: 'Remove', exact: true }).click(); await expect(summary).toHaveCount(0);
   await addFromMenu(page, name, '2'); await summary.getByRole('button', { name: 'Clear cart', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Clear your cart?' }); await dialog.getByRole('button', { name: 'Cancel' }).click(); await expect(dialog).not.toBeVisible();
   await expect(summary).toContainText('2 items'); await summary.getByRole('button', { name: 'Clear cart', exact: true }).click();

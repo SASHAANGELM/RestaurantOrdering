@@ -7,7 +7,7 @@ import {
 } from '@restaurant-ordering/contracts';
 import type { DatabaseConnection } from '../../db/connection';
 import { validateRequest } from '../../middleware/validation';
-import { listCategories, listItems, resolveItems, readCatalog } from './queries';
+import { listCategories, listItems, resolveItems, readCatalog, getItemDetails } from './queries';
 import { createMenuService } from './service';
 import type { Notifications } from '../realtime/server';
 
@@ -17,12 +17,18 @@ export function createMenuRouter(connection: DatabaseConnection, notifications?:
   const router = Router();
   const service = createMenuService(connection);
   router.use((_request, response, next) => { response.setHeader('Cache-Control', 'no-store'); next(); });
-  router.get('/menu/catalog', (request, response) => {
-    const catalog = readCatalog(connection);
+  router.get(['/menu/catalog', '/setup/catalog'], (request, response) => {
+    validateRequest(z.strictObject({}), request.query, 'query');
+    const catalog = readCatalog(connection, request.path === '/setup/catalog');
     response.vary('Accept-Encoding');
     if (request.acceptsEncodings('gzip')) {
       response.type('application/json').set('Content-Encoding', 'gzip').send(gzipSync(JSON.stringify(catalog)));
     } else response.json(catalog);
+  });
+  router.get('/items/:id', (request, response) => {
+    validateRequest(z.strictObject({}), request.query, 'query');
+    const { id } = validateRequest(idParamsSchema, request.params, 'params');
+    response.json(getItemDetails(connection, id));
   });
   router.get('/menu/categories', (request, response) => {
     const query = validateRequest(menuCategoriesQuerySchema, request.query, 'query');

@@ -6,7 +6,7 @@ import { ApiClient } from '../../core/api-client';
 import { RealtimeSync } from '../../core/realtime-sync';
 import { remoteQuery } from '../../core/remote-query';
 import {
-  CART_STORAGE_KEY, emptyCart, entryChanges, entryInputIssue, entryPrice, estimateCart, moneyText,
+  CART_STORAGE_KEY, emptyCart, entryChanges, entryEligibilityIssue, entryPricingWarning, entryInputIssue, entryPrice, estimateCart, moneyText,
   newEntry, quantityValue, storedCartSchema, type StoredCart
 } from './cart.model';
 
@@ -39,11 +39,28 @@ export const CartStore = signalStore(
   withComputed((store) => ({
     entries: computed(() => {
       const resolved = new Map(store.resolved.data()?.items.map((item) => [item.itemId, item]));
-      return store.lines().map((line) => ({ ...line, inputIssue: entryInputIssue(line), changes: entryChanges(line, resolved.get(line.item.id)),
-        lineTotalMinor: entryInputIssue(line) ? null : entryPrice(line) * quantityValue(line.quantityText) }));
+      return store.lines().map(line => {
+        const current = resolved.get(line.item.id);
+        const item = current && current.state !== 'missing' ? current.item : line.item;
+        return { ...line, item, inputIssue: entryInputIssue({ ...line, item }), changes: entryChanges(line, current),
+          eligibilityIssue: entryEligibilityIssue(current), pricingWarning: entryPricingWarning(line, current),
+          lineTotalMinor: entryInputIssue(line) ? null : entryPrice(line) * quantityValue(line.quantityText) };
+      });
     })
   })),
   withMethods((store, storage = inject(CART_STORAGE)) => ({
+    acknowledgePrice(id: string): string | null {
+      if (store.checkoutLocked()) return 'Resolve the pending checkout before changing your cart.';
+      if (store.resolved.loading() || store.resolved.stale() || store.resolved.error()) return 'Wait for current prices to finish loading.';
+      const line = store.lines().find(entry => entry.id === id);
+      const current = store.resolved.data()?.items.find(entry => entry.itemId === line?.item.id);
+      if (!line || !current || current.state === 'missing') return 'This item is no longer available.';
+      const next = { ...line, item: current.item, priceText: current.item.pricingMode === 'fixed' ? moneyText(current.item.priceMinor) : line.priceText };
+      const issue = entryInputIssue(next);
+      if (issue) return issue;
+      patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().map(entry => entry.id === id ? next : entry) });
+      return null;
+    },
     clear() { if (!store.checkoutLocked()) patchState(store, { ...emptyCart(), intentRevision: store.intentRevision() + 1 }); },
     updateLine(id: string, quantityText: string, priceText: string, comment?: string): string | null {
       if (store.checkoutLocked()) return 'Resolve the pending checkout before changing your cart.';
@@ -104,6 +121,21 @@ export const CartStore = signalStore(
     remove(id: string) { if (!store.checkoutLocked()) patchState(store, { intentRevision: store.intentRevision() + 1, lines: store.lines().filter((line) => line.id !== id) }); }
   })),
   withHooks({ onInit(store, storage = inject(CART_STORAGE)) {
+    effect(() => {
+      const snapshot = store.resolved.data();
+      if (!snapshot || store.checkoutLocked() || store.resolved.stale() || store.resolved.error()) return;
+      const current = new Map(snapshot.items.map(entry => [entry.itemId, entry]));
+      const lines = store.lines().map(line => {
+        const resolved = current.get(line.item.id);
+        if (!resolved || resolved.state === 'missing') return line;
+        // Keep accepted pricing until OK, but publish current names/images and eligibility silently.
+        const item: MenuItem = line.item.pricingMode === 'fixed'
+          ? { ...resolved.item, pricingMode: 'fixed', priceMinor: line.item.priceMinor }
+          : { ...resolved.item, pricingMode: 'open', priceMinor: null };
+        return { ...line, item };
+      });
+      if (JSON.stringify(lines) !== JSON.stringify(store.lines())) untracked(() => patchState(store, { lines, intentRevision: store.intentRevision() + 1 }));
+    });
     effect(() => {
       const data: StoredCart = { version: 1, lines: store.lines(), discountText: store.discountText() };
       untracked(() => {

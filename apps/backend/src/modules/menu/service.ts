@@ -79,13 +79,21 @@ export function createMenuService(connection: DatabaseConnection) {
         const current = connection.db.select().from(menuItems).where(eq(menuItems.id, id)).get();
         if (!current) notFound('item', id);
         checkRevision('item', id, input.expectedRevision, current.revision);
+        if ((input.archived === true && current.archivedAt === null && current.available) ||
+            (input.available === true && (current.archivedAt !== null || input.archived === true))) {
+          throw new HttpError({ code: 'INVALID_ITEM_TRANSITION',
+            message: current.archivedAt !== null ? 'Restore this item as unavailable before enabling availability.'
+              : 'Mark this item as unavailable and save before archiving it.',
+            details: { itemId: id, currentState: current.archivedAt !== null ? 'archived' : current.available ? 'available' : 'unavailable',
+              requestedState: input.archived === true ? 'archived' : 'available' } });
+        }
         if (input.categoryId !== undefined) activeCategory(input.categoryId);
         const now = new Date().toISOString();
         const changes = {
           categoryId: input.categoryId ?? current.categoryId, name: input.name ?? current.name,
           description: input.description === undefined ? current.description : input.description,
           imageUrl: input.imageUrl === undefined ? current.imageUrl : input.imageUrl,
-          available: input.available ?? current.available,
+          available: input.archived === true || (input.archived === false && current.archivedAt !== null) ? false : input.available ?? current.available,
           pricingMode: 'pricingMode' in input ? input.pricingMode : current.pricingMode,
           priceMinor: 'pricingMode' in input ? input.pricingMode === 'fixed' ? input.priceMinor : null : current.priceMinor,
           archivedAt: input.archived === false ? null : input.archived ? current.archivedAt ?? now : current.archivedAt

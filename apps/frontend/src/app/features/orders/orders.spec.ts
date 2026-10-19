@@ -11,6 +11,7 @@ import { RealtimeSync, SOCKET_FACTORY } from '../../core/realtime-sync';
 import { FakeSocket } from '../../core/testing/fake-socket';
 import { OrderDetailPage } from './order-detail.page';
 import { OrderDetailStore, OrdersStore } from './orders.store';
+import { OrderStatusControl } from './order-status-control';
 
 const id = '11111111-1111-4111-8111-111111111111';
 const otherId = '22222222-2222-4222-8222-222222222222';
@@ -74,6 +75,34 @@ describe('Orders staff workflows', () => {
     expect(root.textContent).toContain('Original soup'); expect(root.textContent).toContain('Lunch');
     expect(root.textContent).toContain('Quantity: 2 × $7.50'); expect(root.textContent).toContain('$15.00');
     expect(root.textContent).toContain('−$1.00'); expect(root.querySelector('dl')?.textContent).toContain('$14.00');
+  });
+
+  it('updates status inline once, requires explicit recovery after a conflict, and uses the recovered revision', () => {
+    const fixture = TestBed.createComponent(OrderStatusControl); fixture.componentRef.setInput('order', detail().order); fixture.detectChanges();
+    const select: HTMLSelectElement = fixture.nativeElement.querySelector('select');
+    expect([...select.options].map(option => option.value)).toEqual(['placed', 'preparing', 'cancelled']);
+    select.value = 'preparing'; select.dispatchEvent(new Event('change'));
+    select.value = 'preparing'; select.dispatchEvent(new Event('change'));
+    const request = http.expectOne(`/api/orders/${id}/status`); expect(request.request.body).toEqual({ expectedRevision: 1, status: 'preparing' });
+    request.flush({ error: { code: 'REVISION_CONFLICT', requestId: otherId, message: 'Changed',
+      details: { entityType: 'order', entityId: id, expectedRevision: 1, currentRevision: 2 } } }, { status: 409, statusText: 'Conflict' });
+    fixture.componentRef.setInput('order', detail('preparing', 2).order); fixture.detectChanges();
+    expect(select.disabled).toBe(true);
+    fixture.componentInstance.refreshStatus(); http.expectOne(`/api/orders/${id}`).flush(detail('preparing', 2)); fixture.detectChanges();
+    expect(select.disabled).toBe(false); select.value = 'ready'; select.dispatchEvent(new Event('change'));
+    const retry = http.expectOne(`/api/orders/${id}/status`); expect(retry.request.body).toEqual({ expectedRevision: 2, status: 'ready' });
+    retry.flush(detail('ready', 3)); expect(fixture.componentInstance.current().status).toBe('ready');
+  });
+
+  it('confirms inline cancellation, disables terminal dropdowns, and never applies an older mutation over a live update', () => {
+    const fixture = TestBed.createComponent(OrderStatusControl); fixture.componentRef.setInput('order', detail().order); fixture.detectChanges();
+    const select: HTMLSelectElement = fixture.nativeElement.querySelector('select'); select.value = 'cancelled'; select.dispatchEvent(new Event('change'));
+    http.expectNone(`/api/orders/${id}/status`); confirmation.next(true);
+    const request = http.expectOne(`/api/orders/${id}/status`);
+    fixture.componentRef.setInput('order', detail('completed', 4).order); fixture.detectChanges();
+    expect(select.value).toBe('completed');
+    request.flush(detail('cancelled', 2)); fixture.detectChanges();
+    expect(fixture.componentInstance.current().status).toBe('completed'); expect(select.disabled).toBe(true); expect(select.value).toBe('completed');
   });
 
   it('cannot confirm cancellation against a different order after the route changes', () => {

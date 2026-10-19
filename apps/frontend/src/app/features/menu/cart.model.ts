@@ -37,21 +37,25 @@ export function estimateCart(lines: CartEntry[], discountText: string) {
     return { ...calculateTotals([subtotalMinor], discountMinor), error: null };
   } catch { return { subtotalMinor, totalMinor: null, discountMinor: null, error: 'Enter a nonnegative discount with at most two decimal places.' }; }
 }
-export function entryChanges(line: CartEntry, resolved?: ResolvedItem): string[] {
-  if (!resolved) return ['Availability has not been checked yet.'];
-  if (resolved.state === 'missing') return ['Item removed — cannot be ordered.'];
-  const changes: string[] = [];
-  const stateText = {
+export function entryEligibilityIssue(resolved?: ResolvedItem): string | null {
+  if (!resolved) return 'Availability has not been checked yet.';
+  if (resolved.state === 'missing') return 'Item removed — cannot be ordered.';
+  return {
     available: '', unavailable: 'Unavailable — cannot be ordered.', archived: 'Item archived — cannot be ordered.',
     'category-archived': 'Category archived — cannot be ordered.'
-  }[resolved.state];
-  if (stateText) changes.push(stateText);
-  if (resolved.item.name !== line.item.name) changes.push(`Now named ${resolved.item.name}.`);
-  if (resolved.item.pricingMode !== line.item.pricingMode) changes.push('Pricing mode changed. Remove this line and add the item again to choose its new price.');
-  else if (resolved.item.pricingMode === 'fixed' && line.item.pricingMode === 'fixed' && resolved.item.priceMinor !== line.item.priceMinor) {
-    changes.push(`Price changed from $${moneyText(line.item.priceMinor)} to $${moneyText(resolved.item.priceMinor)}. Estimate retains your added price until review.`);
-  }
-  return changes;
+  }[resolved.state] || null;
+}
+export function entryPricingWarning(line: CartEntry, resolved?: ResolvedItem): string | null {
+  if (!resolved || resolved.state === 'missing') return null;
+  if (resolved.item.pricingMode !== line.item.pricingMode) return resolved.item.pricingMode === 'fixed'
+    ? `Pricing changed from open price to fixed price ($${moneyText(resolved.item.priceMinor)}). Select OK to use the fixed price.`
+    : 'Pricing changed from fixed price to open price. Review the unit price, then select OK.';
+  if (resolved.item.pricingMode === 'fixed' && line.item.pricingMode === 'fixed' && resolved.item.priceMinor !== line.item.priceMinor)
+    return `Price changed from $${moneyText(line.item.priceMinor)} to $${moneyText(resolved.item.priceMinor)}. Select OK to update the estimate.`;
+  return null;
+}
+export function entryChanges(line: CartEntry, resolved?: ResolvedItem): string[] {
+  return [entryEligibilityIssue(resolved), entryPricingWarning(line, resolved)].filter((message): message is string => !!message);
 }
 export function newEntry(item: MenuItem, quantityText: string, priceText: string, comment = ''): CartEntry {
   return { id: crypto.randomUUID(), item, quantityText, priceText, ...(comment ? { comment } : {}) };

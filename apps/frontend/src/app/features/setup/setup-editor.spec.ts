@@ -41,7 +41,7 @@ describe('Setup editor', () => {
   }
 
   it('keeps archival inside editing and requires explicit confirmation without submitting the draft', () => {
-    const { component, fixture } = editor();
+    const { component, fixture } = editor({ entity: { ...item, available: false } });
     component.form.patchValue({ name: 'Unsaved draft' });
     expect(fixture.nativeElement.textContent).toContain('Archive item');
     component.beginArchive(); fixture.detectChanges();
@@ -52,6 +52,16 @@ describe('Setup editor', () => {
     const request = http.expectOne(`/api/setup/items/${itemId}`);
     expect(request.request.body).toEqual({ expectedRevision: 1, archived: true });
     request.flush({ item: { ...item, archivedAt: timestamp, revision: 2 }, menuRevision: 2 });
+  });
+
+  it('requires availability to be saved as unavailable before archive confirmation can open', () => {
+    const { component, fixture } = editor();
+    expect(component.canArchive()).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('Mark this item as unavailable and save');
+    component.form.controls.available.setValue(false);
+    component.beginArchive();
+    expect(component.archiving()).toBe(false);
+    http.expectNone(() => true);
   });
 
   it('preserves and clears item images explicitly', () => {
@@ -67,7 +77,7 @@ describe('Setup editor', () => {
     const { component, fixture } = editor({ kind, entity, restore: true });
     expect(component.title).toBe(`Restore ${kind}`);
     expect(fixture.nativeElement.querySelector('form')).toBeNull();
-    expect(fixture.nativeElement.textContent).toContain(kind === 'category' ? 'Individually archived items stay archived' : 'availability setting is preserved');
+    expect(fixture.nativeElement.textContent).toContain(kind === 'category' ? 'Individually archived items stay archived' : 'restored as unavailable');
     http.expectNone(() => true);
     component.form.controls.name.setValue('Must not be sent');
     component.save(); component.save();
@@ -83,7 +93,7 @@ describe('Setup editor', () => {
     const { component, fixture } = editor({ restore: true, entity: { ...item, archivedAt: timestamp, available: false },
       categories: [{ ...category, archivedAt: timestamp }] });
     expect(fixture.nativeElement.textContent).toContain("This item's category is archived");
-    expect(fixture.nativeElement.textContent).toContain('This item is unavailable');
+    expect(fixture.nativeElement.textContent).toContain('restored as unavailable');
     component.save();
     http.expectOne(`/api/setup/items/${itemId}`).error(new ProgressEvent('error'));
     expect(component.busy()).toBe(false); expect(dialog.disableClose).toBe(false);

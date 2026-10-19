@@ -10,7 +10,6 @@ test('quantity controls, cart errors, confirmed removal, loading overlays and li
   } })).json()).item;
   await page.goto('/setup/items');
   await page.getByRole('textbox', { name: 'Search items', exact: true }).fill(name);
-  await page.getByRole('button', { name: 'Apply filters' }).click();
   const row = page.getByRole('listitem').filter({ hasText: name });
   await expect(row.getByRole('img', { name })).toHaveAttribute('src', '/api/images/soup.jpg');
   await expect(row.getByRole('switch', { name: `Available ${name}` })).toBeChecked();
@@ -23,7 +22,7 @@ test('quantity controls, cart errors, confirmed removal, loading overlays and li
   await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.goto('/menu'); await page.getByRole('textbox', { name: 'Search menu' }).fill(name);
   await page.getByRole('button', { name: `Add ${name} to cart`, exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Set quantity' });
+  const dialog = page.getByRole('dialog', { name: /^(Add to cart|Edit in cart)$/ });
   await dialog.getByRole('button', { name: 'Increase Quantity' }).click();
   await expect(dialog.getByRole('spinbutton', { name: 'Quantity', exact: true })).toHaveValue('2');
   expect((await dialog.locator('app-quantity-input').boundingBox())!.height).toBe(56);
@@ -42,7 +41,7 @@ test('quantity controls, cart errors, confirmed removal, loading overlays and li
   await expect(page.locator('.checkout-issue')).toContainText('Correct cart line inputs');
   await expect(page.getByRole('button', { name: 'Confirm order', exact: true })).toBeDisabled();
   await line.getByRole('spinbutton').fill('2');
-  expect((await cart.getByRole('link', { name: 'Back to menu' }).boundingBox())!.x).toBeLessThan(100);
+  expect((await page.getByRole('navigation', { name: 'Breadcrumb', exact: true }).getByRole('link', { name: 'Menu', exact: true }).boundingBox())!.x).toBeLessThan(100);
   await expect(cart.getByRole('button', { name: 'Refresh cart' })).toHaveCount(0);
   const reviewed = page.getByRole('button', { name: 'Confirm order', exact: true });
   let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });

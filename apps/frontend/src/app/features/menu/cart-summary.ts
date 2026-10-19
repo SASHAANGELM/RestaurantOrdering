@@ -3,16 +3,16 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { MatButton } from '@angular/material/button';
 import { MatTooltip } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
-import { ItemImage } from '../../shared/item-image';
+import { ItemImageStack } from '../../shared/item-image-stack';
 import { ClearCartButton } from './clear-cart-button';
 import { CartStore } from './cart.store';
 import { quantityValue } from './cart.model';
 
 @Component({
-  selector: 'app-cart-summary', imports: [CurrencyPipe, MatButton, MatTooltip, RouterLink, ItemImage, ClearCartButton], changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-cart-summary', imports: [CurrencyPipe, MatButton, MatTooltip, RouterLink, ItemImageStack, ClearCartButton], changeDetection: ChangeDetectionStrategy.OnPush,
   template: `@if (cart.lines().length) {
     <footer class="cart-summary" role="region" aria-label="Cart summary"><div class="summary-inner">
-      <div class="summary-content"><div class="summary-images" aria-hidden="true">@for (item of dishes().slice(0, 3); track item.id) { <app-item-image class="circle" [src]="item.imageUrl" [name]="item.name" /> }</div>
+      <div class="summary-content"><app-item-image-stack aria-hidden="true" [items]="dishes()" />
         <div class="summary-copy" aria-live="polite"><strong>{{ count() }} {{ count() === 1 ? 'item' : 'items' }} in your cart</strong><span class="dish-names" [title]="names()">{{ names() }}</span>@if (problem(); as message) { <span class="cart-problem">{{ message }}</span> }</div>
       </div>
       <div class="summary-actions"><strong>{{ cart.estimate().totalMinor === null ? 'Check total' : ((cart.estimate().totalMinor ?? 0) / 100 | currency) }}</strong><a mat-flat-button routerLink="/cart" aria-label="View cart" matTooltip="View cart"><i class="ti ti-shopping-cart" aria-hidden="true"></i><span class="cart-link-text">View cart</span></a><app-clear-cart-button /></div>
@@ -40,7 +40,7 @@ export class CartSummary {
     if (this.cart.estimate().error) return this.cart.estimate().error;
     if (this.cart.resolved.error() || this.cart.resolved.stale()) return 'Availability could not be checked. Open cart to retry.';
     const changes = this.cart.entries().flatMap(line => line.inputIssue ? [line.inputIssue] : line.changes);
-    if (changes.length) return changes.find(change => /cannot be ordered|Pricing mode changed/.test(change)) ?? changes[0];
+    if (changes.length) return changes.find(change => /cannot be ordered|Pricing changed/.test(change)) ?? changes[0];
     return this.cart.storageNotice();
   });
 }

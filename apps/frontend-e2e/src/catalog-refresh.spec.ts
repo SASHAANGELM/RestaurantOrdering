@@ -47,11 +47,11 @@ test('photo grid, category navigation and compact cart footer work across deskto
   await summary.getByRole('link', { name: 'View cart' }).click(); await expect(page).toHaveURL(/\/cart$/);
   const cart = page.getByRole('region', { name: 'Your cart' }); await expect(cart.getByRole('listitem')).toHaveCount(2);
   await cart.getByRole('spinbutton', { name: `Cart quantity for ${items[0]!.name}`, exact: true }).fill('0');
-  await page.getByRole('link', { name: 'Back to menu', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Breadcrumb', exact: true }).getByRole('link', { name: 'Menu', exact: true }).click();
   await expect(summary).toContainText('Correct cart line inputs'); await expect(summary).toContainText('Check total');
   await summary.getByRole('link', { name: 'View cart' }).click();
   for (const item of items.slice(0, 2)) { await cart.getByRole('button', { name: `Remove ${item.name} from cart`, exact: true }).click(); await page.getByRole('dialog', { name: 'Remove item?' }).getByRole('button', { name: 'Remove', exact: true }).click(); }
-  await page.getByRole('link', { name: 'Back to menu', exact: true }).click(); await expect(summary).toHaveCount(0);
+  await page.getByRole('navigation', { name: 'Breadcrumb', exact: true }).getByRole('link', { name: 'Menu', exact: true }).click(); await expect(summary).toHaveCount(0);
 });
 
 test('Setup hub opens independent pages and availability precedes Edit with archival inside its dialog', async ({ page, request }) => {
@@ -66,7 +66,6 @@ test('Setup hub opens independent pages and availability precedes Edit with arch
   await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Settings' }).click();
   await page.getByRole('link', { name: /Items.*Manage items/ }).click(); await expect(page).toHaveURL(/\/setup\/items$/);
   await page.getByRole('textbox', { name: 'Search items', exact: true }).fill(name);
-  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
   const row = page.getByRole('listitem').filter({ hasText: name });
   await expect(row.getByRole('button', { name: /Archive/ })).toHaveCount(0);
   const available = row.getByRole('switch', { name: `Available ${name}`, exact: true });

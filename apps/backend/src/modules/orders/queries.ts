@@ -1,4 +1,4 @@
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import {
   orderSchema, orderSummarySchema, type OrderResponse, type OrdersQuery, type OrdersResponse
 } from '@restaurant-ordering/contracts';
@@ -55,10 +55,23 @@ export function getOrderByRequest(connection: DatabaseConnection, idempotencyKey
 
 export function listOrders(connection: DatabaseConnection, query: OrdersQuery): OrdersResponse {
   return connection.sqlite.transaction(() => {
-    const filter = query.status === undefined ? undefined : eq(orders.status, query.status);
+    const filter = and(query.status === undefined ? undefined : eq(orders.status, query.status),
+      query.itemId === undefined ? undefined : inArray(orders.id,
+        connection.db.select({ orderId: orderLines.orderId }).from(orderLines).where(eq(orderLines.itemId, query.itemId))));
     const total = connection.db.select({ count: sql<number>`count(*)` }).from(orders).where(filter).get()!.count;
     const rows = query.page > Math.ceil(total / query.pageSize) ? [] : connection.db.select().from(orders).where(filter)
       .orderBy(desc(orders.createdAt), desc(orders.id)).limit(query.pageSize).offset((query.page - 1) * query.pageSize).all();
-    return { orders: rows.map(toSummary), total, page: query.page, pageSize: query.pageSize, ordersRevision: readOrdersRevision(connection) };
+    const images = new Map<string, { id: string; name: string; imageUrl?: string }[]>();
+    if (rows.length) {
+      const lines = connection.db.select({ orderId: orderLines.orderId, id: orderLines.itemId, name: orderLines.itemName, imageUrl: orderLines.imageUrl })
+        .from(orderLines).where(inArray(orderLines.orderId, rows.map(row => row.id))).orderBy(asc(orderLines.lineIndex)).all();
+      for (const line of lines) {
+        const previews = images.get(line.orderId) ?? [];
+        if (previews.length < 3 && !previews.some(image => image.id === line.id)) previews.push({ id: line.id, name: line.name,
+          ...(line.imageUrl ? { imageUrl: line.imageUrl.replace(/^\/images\//, '/api/images/') } : {}) });
+        images.set(line.orderId, previews);
+      }
+    }
+    return { orders: rows.map(row => ({ ...toSummary(row), itemImages: images.get(row.id) ?? [] })), total, page: query.page, pageSize: query.pageSize, ordersRevision: readOrdersRevision(connection) };
   })();
 }

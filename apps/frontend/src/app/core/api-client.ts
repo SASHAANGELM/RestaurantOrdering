@@ -3,7 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, defer, map, type Observable, throwError, timeout } from 'rxjs';
 import { ZodError, type ZodType } from 'zod';
 import {
-  apiErrorSchema, menuCatalogSchema, categoriesResponseSchema, categoryMutationResponseSchema, confirmOrderSchema,
+  apiErrorSchema, menuCatalogSchema, setupCatalogSchema, itemDetailsResponseSchema, categoriesResponseSchema, categoryMutationResponseSchema, confirmOrderSchema,
   createCategorySchema, createItemSchema, createQuoteSchema, idempotencyKeySchema, idSchema,
   itemMutationResponseSchema, itemsResponseSchema, menuItemsQuerySchema, orderResponseSchema,
   ordersQuerySchema, ordersResponseSchema, quoteResponseSchema, resolveItemsRequestSchema,
@@ -63,6 +63,8 @@ export class ApiClient {
 
   sync() { return this.request('GET', '/sync', syncStateSchema); }
   catalog() { return this.request('GET', '/menu/catalog', menuCatalogSchema); }
+  setupCatalog() { return this.request('GET', '/setup/catalog', setupCatalogSchema); }
+  item(id: string) { return this.send(() => this.request('GET', `/items/${idSchema.parse(id)}`, itemDetailsResponseSchema)); }
   categories(search = '') { return this.request('GET', '/menu/categories', categoriesResponseSchema, { params: search ? { search } : {} }); }
   setupCategories(includeArchived = false) {
     return this.send(() => this.request('GET', '/setup/categories', categoriesResponseSchema,

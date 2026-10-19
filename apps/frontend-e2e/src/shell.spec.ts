@@ -92,13 +92,13 @@ test('order deep links read snapshots and route parameter changes recover from i
   await expect(page.locator('dl')).toContainText('$15.00');
   await page.reload();
   await expect(page.getByText(item.name, { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Back to orders' }).click();
-  await page.getByRole('link', { name: `Order ${result.order.id}`, exact: true }).click();
+  await page.getByRole('navigation', { name: 'Breadcrumb', exact: true }).getByRole('link', { name: 'Orders', exact: true }).click();
+  await page.getByRole('link', { name: `Order ${result.order.id.slice(0, 8)}`, exact: true }).click();
   await expect(page.getByText(item.name, { exact: true })).toBeVisible();
   await page.goto('/orders/invalid');
   await expect(page.getByRole('alert')).toContainText('Check the request fields');
   await page.goto(`/orders/${randomUUID()}`);
   await expect(page.getByRole('alert')).toContainText('not found');
-  await page.getByRole('link', { name: 'Back to orders' }).click();
+  await page.getByRole('navigation', { name: 'Breadcrumb', exact: true }).getByRole('link', { name: 'Orders', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Orders');
 });

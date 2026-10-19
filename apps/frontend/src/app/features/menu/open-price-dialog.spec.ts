@@ -30,10 +30,13 @@ describe('open-price dialog', () => {
   }
   afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
 
-  it('uses quantity-only editing for fixed dishes and restores an existing line when reopened', () => {
+  it('shows a read-only unit price for fixed dishes and restores an existing line when reopened', () => {
     const fixed: MenuItem = { ...item, pricingMode: 'fixed', priceMinor: 750 };
     const { dialog, fixture, cart } = setup(fixed);
     expect(fixture.nativeElement.textContent).not.toContain('Unit price (USD)');
+    expect(fixture.nativeElement.querySelector('app-price-input')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.fixed-price').textContent).toBe('7.50 USD');
+    expect(fixture.nativeElement.querySelector('app-item-image img').alt).toBe(fixed.name);
     dialog.quantity.setValue('3'); dialog.add(); TestBed.tick();
     http.expectOne('/api/menu/resolve').error(new ProgressEvent('error'));
     const reopened = TestBed.createComponent(OpenPriceDialog); reopened.detectChanges();
@@ -69,5 +72,19 @@ describe('open-price dialog', () => {
     TestBed.tick(); http.expectOne('/api/menu/resolve').error(new ProgressEvent('error'));
     expect(cart.lines()).toHaveLength(1); expect(cart.lines()[0]?.quantityText).toBe('2');
     expect(cart.resolved.error()?.kind).toBe('network');
+  });
+
+  it('starts comments collapsed, adds/removes the editor, and exposes deletion only for an existing cart line', () => {
+    const { fixture, dialog, cart } = setup();
+    expect(fixture.nativeElement.querySelector('textarea')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Add to cart'); expect(fixture.nativeElement.textContent).not.toContain('Delete from cart');
+    dialog.commentOpen.set(true); dialog.comment.setValue('No mustard'); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('textarea')).not.toBeNull();
+    dialog.removeComment(); fixture.detectChanges();
+    expect(dialog.comment.value).toBe(''); expect(fixture.nativeElement.querySelector('textarea')).toBeNull();
+    dialog.price.setValue('1.00'); dialog.add(); TestBed.tick(); http.expectOne('/api/menu/resolve').error(new ProgressEvent('error'));
+    const reopened = TestBed.createComponent(OpenPriceDialog); reopened.detectChanges();
+    expect(reopened.nativeElement.textContent).toContain('Edit in cart'); expect(reopened.nativeElement.textContent).toContain('Delete from cart');
+    reopened.componentInstance.remove(); confirmation.next(true); expect(cart.lines()).toEqual([]);
   });
 });

@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import {
   entityRevisionSchema, idSchema, MAX_CART_LINES, MAX_PAGE_SIZE, paginationQueryShape,
-  paginationShape, revisionSchema, timestampSchema
+  paginationShape, revisionSchema, timestampSchema, nameSchema
 } from './common';
 import { itemImageSchema } from './menu';
 import { hasConsistentTotals, snapshotLineSchema, totalsShape } from './checkout';
@@ -38,7 +38,9 @@ const orderSummaryShape = {
 function hasConsistentSummary(value: { subtotalMinor: number; discountMinor: number; totalMinor: number }): boolean {
   return value.discountMinor <= value.subtotalMinor && value.totalMinor === value.subtotalMinor - value.discountMinor;
 }
-export const orderSummarySchema = z.strictObject(orderSummaryShape)
+export const orderSummarySchema = z.strictObject({ ...orderSummaryShape,
+  itemImages: z.array(z.strictObject({ id: idSchema, name: nameSchema, imageUrl: itemImageSchema.optional() })).max(3).optional()
+})
   .refine(hasConsistentSummary, 'Order totals are inconsistent.');
 export const orderLineSchema = snapshotLineSchema.safeExtend({ id: idSchema, imageUrl: itemImageSchema.optional() });
 export const orderSchema = z.strictObject({
@@ -46,7 +48,7 @@ export const orderSchema = z.strictObject({
   history: z.array(z.strictObject({ status: orderStatusSchema, changedAt: timestampSchema })).max(5).optional(),
   lines: z.array(orderLineSchema).min(1).max(MAX_CART_LINES)
 }).refine(hasConsistentTotals, 'Order line totals are inconsistent.');
-export const ordersQuerySchema = z.strictObject({ ...paginationQueryShape, status: orderStatusSchema.optional() });
+export const ordersQuerySchema = z.strictObject({ ...paginationQueryShape, status: orderStatusSchema.optional(), itemId: idSchema.optional() });
 export const ordersResponseSchema = z.strictObject({
   orders: z.array(orderSummarySchema).max(MAX_PAGE_SIZE), ...paginationShape, ordersRevision: revisionSchema
 }).refine((value) => value.orders.length <= value.pageSize && value.orders.length <= value.total,

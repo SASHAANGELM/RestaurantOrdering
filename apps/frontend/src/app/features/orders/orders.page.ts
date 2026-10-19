@@ -1,4 +1,6 @@
-import { BusyButton } from '../../shared/busy-button';
+import { PageHeading } from '../../shared/page-heading';
+import { ItemImageStack } from '../../shared/item-image-stack';
+import { OrderStatusControl } from './order-status-control';
 import { CurrencyPipe, DatePipe, TitleCasePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MatButton } from '@angular/material/button';
@@ -13,12 +15,11 @@ import { OrdersStore } from './orders.store';
 @Component({
   selector: 'app-orders-page',
   providers: [OrdersStore],
-  imports: [BusyButton, CurrencyPipe, DatePipe, TitleCasePipe, MatButton, MatFormFieldModule, MatPaginator, MatSelectModule, RouterLink, LoadState],
+  imports: [PageHeading, ItemImageStack, OrderStatusControl, CurrencyPipe, DatePipe, TitleCasePipe, MatButton, MatFormFieldModule, MatPaginator, MatSelectModule, RouterLink, LoadState],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styles: [`mat-form-field { margin-top: 1rem; } mat-paginator { background: transparent; }`],
+  styles: [`.order-copy { flex: 1; min-width: 10rem; } mat-form-field { margin-top: 1rem; } mat-paginator { background: transparent; }`],
   template: `
-    <div class="page-heading"><div><h1 tabindex="-1">Orders</h1></div>
-      <button [appBusy]="store.orders.loading()" mat-stroked-button (click)="store.reload()"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh orders</button></div>
+    <app-page-heading title="Orders" refreshLabel="Refresh orders" [busy]="store.orders.loading()" (refresh)="store.reload()" />
     <p class="muted">Open an order to view its details and update its kitchen status.</p>
     <mat-form-field appearance="outline"><mat-label><i class="ti ti-filter" aria-hidden="true"></i> Filter by status</mat-label><mat-select [value]="store.query().status ?? ''" (selectionChange)="store.filter($event.value || undefined)">
       <mat-option value="">All statuses</mat-option>
@@ -28,9 +29,9 @@ import { OrdersStore } from './orders.store';
     @if (store.orders.data(); as page) {
       <p class="muted" role="status">{{ page.total }} orders · Page {{ page.page }}</p>
       <ul class="data-list">@for (order of page.orders; track order.id) {
-        <li [class]="'order-row status-' + order.status"><div><a [routerLink]="['/orders', order.id]">Order {{ order.id }}</a>
+        <li [class]="'order-row status-' + order.status"><app-item-image-stack [items]="order.itemImages ?? []" /><div class="order-copy"><a [routerLink]="['/orders', order.id]">Order {{ order.id.slice(0, 8) }}</a>
           <p class="muted">Placed {{ order.createdAt | date:'medium' }}</p></div>
-          <span [class]="'status-badge status-' + order.status"><i class="ti ti-circle-filled" aria-hidden="true"></i>{{ order.status | titlecase }}</span><span>{{ order.totalMinor / 100 | currency:order.currency }}</span></li>
+          <app-order-status-control [order]="order" (changed)="store.reload()" /><span>{{ order.totalMinor / 100 | currency:order.currency }}</span></li>
       } @empty { <li>No orders match this view. New orders appear automatically.</li> }</ul>
       <mat-paginator aria-label="Order pages" [length]="page.total" [pageSize]="store.query().pageSize" [pageIndex]="store.query().page - 1"
         [pageSizeOptions]="[10, 25, 50, 100]" (page)="store.page($event.pageIndex + 1, $event.pageSize)" />

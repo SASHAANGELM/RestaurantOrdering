@@ -16,7 +16,9 @@ test('local menu search/paging preserves categories, empty results span the grid
   await categories.getByRole('button', { name, exact: true }).click();
   await expect(page.getByRole('button', { name: 'Clear search', exact: true })).toHaveCount(0);
   await expect(page.locator('app-menu-page').getByRole('link', { name: 'View cart' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Refresh menu' })).toHaveAttribute('mattooltip', 'Refresh menu');
+  await page.getByRole('button', { name: 'Refresh menu' }).hover();
+  await expect(page.locator('.mat-mdc-tooltip-surface')).toBeVisible();
+  await expect(page.locator('.mat-mdc-tooltip-surface')).toHaveText('Refresh menu');
   const search = page.getByRole('textbox', { name: 'Search menu' }); await search.fill('no-such-dish');
   await expect(page.getByText('No dishes found', { exact: true })).toBeVisible();
   const empty = page.locator('.empty-menu'); expect((await empty.boundingBox())!.width).toBeGreaterThan(700);
@@ -53,10 +55,11 @@ test('zero quantity, plain confirmations and kitchen comments persist through ca
   }
   await page.goto('/menu'); await page.getByRole('textbox', { name: 'Search menu' }).fill(name);
   await page.getByRole('button', { name: `Add ${names[0]} to cart`, exact: true }).click();
-  let quantity = page.getByRole('dialog', { name: 'Set quantity' });
+  let quantity = page.getByRole('dialog', { name: /^(Add to cart|Edit in cart)$/ });
   await quantity.getByRole('spinbutton').fill('0'); await quantity.getByRole('button', { name: 'Add to cart', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Cart summary' })).toHaveCount(0);
-  await page.getByRole('button', { name: `Add ${names[0]} to cart`, exact: true }).click(); quantity = page.getByRole('dialog', { name: 'Set quantity' });
+  await page.getByRole('button', { name: `Add ${names[0]} to cart`, exact: true }).click(); quantity = page.getByRole('dialog', { name: /^(Add to cart|Edit in cart)$/ });
+  await quantity.getByRole('button', { name: 'Add comment', exact: true }).click();
   await quantity.getByRole('textbox', { name: 'Comment for the kitchen' }).fill('No mustard');
   await quantity.getByRole('button', { name: 'Add to cart', exact: true }).click();
   for (const dish of names.slice(1)) await addFromMenu(page, dish);

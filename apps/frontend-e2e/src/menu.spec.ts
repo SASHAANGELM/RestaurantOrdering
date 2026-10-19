@@ -28,7 +28,7 @@ test('cart preserves open-price lines, drafts, route/reload state and off-page r
   await expect(menu.getByRole('listitem')).toHaveCount(2);
   await addFromMenu(page, fixed.name, '2');
   await page.getByRole('button', { name: `Add ${open.name} to cart`, exact: true }).click();
-  let dialog = page.getByRole('dialog', { name: 'Set open price' });
+  let dialog = page.getByRole('dialog', { name: /^(Add to cart|Edit in cart)$/ });
   const price = dialog.getByRole('textbox', { name: 'Unit price (USD)', exact: true });
   await expect(price).toBeFocused(); await price.fill('1.234');
   await dialog.getByRole('button', { name: 'Add to cart', exact: true }).click();
@@ -37,7 +37,7 @@ test('cart preserves open-price lines, drafts, route/reload state and off-page r
   await expect(dialog).not.toBeVisible();
   await expect(page.getByRole('button', { name: `Add ${open.name} to cart`, exact: true })).toBeFocused();
   await page.getByRole('button', { name: `Add ${open.name} to cart`, exact: true }).click();
-  dialog = page.getByRole('dialog', { name: 'Set open price' });
+  dialog = page.getByRole('dialog', { name: /^(Add to cart|Edit in cart)$/ });
   await expect(dialog.getByRole('spinbutton', { name: 'Quantity', exact: true })).toHaveValue('1');
   await dialog.getByRole('combobox', { name: 'Cart entry' }).click();
   await page.getByRole('option', { name: 'New price / cart line', exact: true }).click();
@@ -101,7 +101,7 @@ test('menu filters locally by search/category and bounds rendered pages and reta
   await expect(menu.getByRole('listitem')).toHaveCount(1);
   expect(searches).toEqual([]);
   await page.getByRole('button', { name: `Add ${fixed.name} to cart`, exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Set quantity', exact: true });
+  const dialog = page.getByRole('dialog', { name: /^(Add to cart|Edit in cart)$/, exact: true });
   const quantity = dialog.getByRole('spinbutton', { name: 'Quantity', exact: true }); await quantity.fill('3');
   expect((await request.patch(`/api/setup/items/${fixed.id}`, { data: { expectedRevision: 1, description: 'Updated without stealing focus' } })).ok()).toBe(true);
   await expect(menu).toContainText('Updated without stealing focus'); await expect(quantity).toBeFocused(); await expect(quantity).toHaveValue('3');

@@ -65,7 +65,7 @@ describe('menu APIs and services with isolated real SQLite files', () => {
   it('loads every active category and item in a single catalog snapshot, beyond page limits', async () => {
     service.createCategory({ name: 'Empty category', sortOrder: 1 });
     for (let index = 0; index < 125; index++) service.createItem({ categoryId: category.id, name: `Dish ${index}`, available: index !== 0, pricingMode: 'fixed', priceMinor: 100 });
-    const removed = service.createItem({ categoryId: category.id, name: 'Archived', available: true, pricingMode: 'fixed', priceMinor: 100 }).response.item;
+    const removed = service.createItem({ categoryId: category.id, name: 'Archived', available: false, pricingMode: 'fixed', priceMinor: 100 }).response.item;
     service.updateItem(removed.id, { expectedRevision: 1, archived: true });
     const response = await request('/menu/catalog');
     expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('no-store');
@@ -78,6 +78,64 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     const identity = await fetch(`${baseUrl}/menu/catalog`, { headers: { 'Accept-Encoding': 'identity' } });
     expect(identity.headers.get('content-encoding')).toBeNull();
     expect(await identity.json()).toEqual(catalog);
+  });
+
+  it('enforces separate unavailable/archive/restore/available writes and rejects lifecycle shortcuts without mutations', async () => {
+    for (const body of [{ archived: true }, { archived: true, available: false }]) {
+      await error(await patchItem({ expectedRevision: 1, ...body }), 409, 'INVALID_ITEM_TRANSITION');
+      expect(readMenuRevision(connection)).toBe(2);
+    }
+    expect((await patchItem({ expectedRevision: 1, available: false })).status).toBe(200);
+    await error(await patchItem({ expectedRevision: 2, archived: true, available: true }), 409, 'INVALID_ITEM_TRANSITION');
+    expect((await patchItem({ expectedRevision: 2, archived: true })).status).toBe(200);
+    for (const body of [{ available: true }, { archived: false, available: true }]) {
+      await error(await patchItem({ expectedRevision: 3, ...body }), 409, 'INVALID_ITEM_TRANSITION');
+      expect(readMenuRevision(connection)).toBe(4);
+    }
+    const restored = itemMutationResponseSchema.parse(await (await patchItem({ expectedRevision: 3, archived: false })).json());
+    expect(restored).toMatchObject({ item: { available: false, archivedAt: null, revision: 4 }, menuRevision: 5 });
+    expect(resolveItems(connection, [item.id]).items[0]?.state).toBe('unavailable');
+    expect((await patchItem({ expectedRevision: 4, available: true })).status).toBe(200);
+    expect(resolveItems(connection, [item.id]).items[0]?.state).toBe('available');
+    expect(readMenuRevision(connection)).toBe(6);
+  });
+
+  it('restores legacy archives with available=true as unavailable without rewriting other fields', async () => {
+    connection.sqlite.prepare('UPDATE menu_items SET archived_at = ? WHERE id = ?').run('2026-10-18T12:00:00.000Z', item.id);
+    const response = await patchItem({ expectedRevision: 1, archived: false });
+    expect(response.status).toBe(200);
+    expect(itemMutationResponseSchema.parse(await response.json())).toMatchObject({ item: { ...item, available: false, revision: 2, updatedAt: expect.any(String) }, menuRevision: 3 });
+  });
+
+  it('loads all management items once including archives and archived categories, without browse query parameters', async () => {
+    for (let index = 0; index < 110; index++) service.createItem({ categoryId: category.id, name: `Managed ${index}`, pricingMode: 'open', available: false });
+    service.updateItem(item.id, { expectedRevision: 1, available: false });
+    service.updateItem(item.id, { expectedRevision: 2, archived: true });
+    service.updateCategory(category.id, { expectedRevision: 1, archived: true });
+    const response = await request('/setup/catalog');
+    expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('no-store');
+    const catalog = menuCatalogSchema.parse(await response.json());
+    expect(catalog.items).toHaveLength(111); expect(catalog.categories[0]?.archivedAt).not.toBeNull();
+    expect(catalog.items.find(entry => entry.id === item.id)?.archivedAt).not.toBeNull();
+    expect(catalog.menuRevision).toBe(readMenuRevision(connection));
+    expect(menuCatalogSchema.parse(await (await request('/menu/catalog')).json()).items).toEqual([]);
+    for (const query of ['search=Managed', 'page=1', 'categoryId=' + category.id]) {
+      await error(await request('/setup/catalog?' + query), 400, 'VALIDATION_ERROR');
+    }
+  });
+
+  it('reads active and archived item details with their category and rejects missing/malformed IDs', async () => {
+    expect(await (await request(`/items/${item.id}`)).json()).toMatchObject({ item, category, menuRevision: 2 });
+    service.updateItem(item.id, { expectedRevision: 1, available: false });
+    service.updateItem(item.id, { expectedRevision: 2, archived: true });
+    service.updateCategory(category.id, { expectedRevision: 1, archived: true });
+    const response = await request(`/items/${item.id}`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ item: { id: item.id, archivedAt: expect.any(String), revision: 3 },
+      category: { id: category.id, archivedAt: expect.any(String) }, menuRevision: 5 });
+    await error(await request(`/items/${randomUUID()}`), 404, 'NOT_FOUND');
+    await error(await request('/items/invalid'), 400, 'VALIDATION_ERROR');
+    await error(await request(`/items/${item.id}?search=x`), 400, 'VALIDATION_ERROR');
   });
 
   it('creates, trims, edits, and persists categories and items through HTTP', async () => {
@@ -233,7 +291,8 @@ describe('menu APIs and services with isolated real SQLite files', () => {
   it('archives items without deleting them, and reports all resolution states in requested order', async () => {
     const unavailable = service.createItem({ categoryId: category.id, name: 'Unavailable', pricingMode: 'open', available: false }).response.item;
     const active = service.createItem({ categoryId: category.id, name: 'Active', pricingMode: 'fixed', priceMinor: 10, available: true }).response.item;
-    const archived = itemMutationResponseSchema.parse(await (await patchItem({ expectedRevision: 1, archived: true })).json());
+    service.updateItem(item.id, { expectedRevision: 1, available: false });
+    const archived = itemMutationResponseSchema.parse(await (await patchItem({ expectedRevision: 2, archived: true })).json());
     expect(archived.item.archivedAt).not.toBeNull();
     const missing = randomUUID();
     const ids = [unavailable.id, missing, item.id, active.id];
@@ -257,29 +316,31 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     });
     const archivedCategory = service.updateCategory(category.id, { expectedRevision: 1, archived: true });
     expect(service.updateCategory(category.id, { expectedRevision: 2, archived: true })).toEqual({ ...archivedCategory, notification: null });
-    const archivedItem = service.updateItem(item.id, { expectedRevision: 1, archived: true });
-    expect(service.updateItem(item.id, { expectedRevision: 2, archived: true })).toEqual({ ...archivedItem, notification: null });
+    service.updateItem(item.id, { expectedRevision: 1, available: false });
+    const archivedItem = service.updateItem(item.id, { expectedRevision: 2, archived: true });
+    expect(service.updateItem(item.id, { expectedRevision: 3, archived: true })).toEqual({ ...archivedItem, notification: null });
   });
 
   it('restores categories and items through HTTP, preserves their fields, and persists across reopening', async () => {
+    service.updateItem(item.id, { expectedRevision: 1, available: false });
     service.updateCategory(category.id, { expectedRevision: 1, archived: true });
-    service.updateItem(item.id, { expectedRevision: 1, archived: true });
+    service.updateItem(item.id, { expectedRevision: 2, archived: true });
     const restoredCategory = categoryMutationResponseSchema.parse(await (await request(`/setup/categories/${category.id}`, 'PATCH',
       { expectedRevision: 2, archived: false })).json());
-    expect(restoredCategory).toMatchObject({ category: { ...category, revision: 3, updatedAt: expect.any(String) }, menuRevision: 5 });
-    const restoredItem = itemMutationResponseSchema.parse(await (await patchItem({ expectedRevision: 2, archived: false })).json());
-    expect(restoredItem).toMatchObject({ item: { ...item, revision: 3, updatedAt: expect.any(String) }, menuRevision: 6 });
+    expect(restoredCategory).toMatchObject({ category: { ...category, revision: 3, updatedAt: expect.any(String) }, menuRevision: 6 });
+    const restoredItem = itemMutationResponseSchema.parse(await (await patchItem({ expectedRevision: 3, archived: false })).json());
+    expect(restoredItem).toMatchObject({ item: { ...item, available: false, revision: 4, updatedAt: expect.any(String) }, menuRevision: 7 });
     expect(menuCatalogSchema.parse(await (await request('/menu/catalog')).json()).items).toEqual([restoredItem.item]);
     expect(categoriesResponseSchema.parse(await (await request('/setup/categories')).json()).categories).toEqual([restoredCategory.category]);
     expect(itemsResponseSchema.parse(await (await request('/setup/items')).json()).items).toEqual([restoredItem.item]);
     connection.close(); connection = openDatabase(filename);
-    expect(resolveItems(connection, [item.id]).items[0]).toMatchObject({ state: 'available', item: restoredItem.item, category: restoredCategory.category });
-    expect(readMenuRevision(connection)).toBe(6);
+    expect(resolveItems(connection, [item.id]).items[0]).toMatchObject({ state: 'unavailable', item: restoredItem.item, category: restoredCategory.category });
+    expect(readMenuRevision(connection)).toBe(7);
   });
 
   it('restores only the chosen record and preserves archived-category and unavailable eligibility', () => {
     const unavailable = service.createItem({ categoryId: category.id, name: 'Unavailable', pricingMode: 'open', available: false }).response.item;
-    const individuallyArchived = service.createItem({ categoryId: category.id, name: 'Archived', pricingMode: 'open', available: true }).response.item;
+    const individuallyArchived = service.createItem({ categoryId: category.id, name: 'Archived', pricingMode: 'open', available: false }).response.item;
     service.updateItem(unavailable.id, { expectedRevision: 1, archived: true });
     const archived = service.updateItem(individuallyArchived.id, { expectedRevision: 1, archived: true }).response.item;
     service.updateCategory(category.id, { expectedRevision: 1, archived: true });
@@ -298,36 +359,38 @@ describe('menu APIs and services with isolated real SQLite files', () => {
   it('revision-checks repeated restores without changing timestamps or publishing no-op notifications', async () => {
     expect(service.updateCategory(category.id, { expectedRevision: 1, archived: false })).toEqual({ response: { category, menuRevision: 2 }, notification: null });
     expect(service.updateItem(item.id, { expectedRevision: 1, archived: false })).toEqual({ response: { item, menuRevision: 2 }, notification: null });
+    service.updateItem(item.id, { expectedRevision: 1, available: false });
     service.updateCategory(category.id, { expectedRevision: 1, archived: true });
-    service.updateItem(item.id, { expectedRevision: 1, archived: true });
+    service.updateItem(item.id, { expectedRevision: 2, archived: true });
     await error(await patchItem({ expectedRevision: 1, archived: false }), 409, 'REVISION_CONFLICT');
     await error(await request(`/setup/categories/${category.id}`, 'PATCH', { expectedRevision: 1, archived: false }), 409, 'REVISION_CONFLICT');
-    expect(readMenuRevision(connection)).toBe(4);
+    expect(readMenuRevision(connection)).toBe(5);
     const restoredCategory = service.updateCategory(category.id, { expectedRevision: 2, archived: false });
     expect(service.updateCategory(category.id, { expectedRevision: 3, archived: false })).toEqual({ ...restoredCategory, notification: null });
-    const restoredItem = service.updateItem(item.id, { expectedRevision: 2, archived: false });
-    expect(service.updateItem(item.id, { expectedRevision: 3, archived: false })).toEqual({ ...restoredItem, notification: null });
+    const restoredItem = service.updateItem(item.id, { expectedRevision: 3, archived: false });
+    expect(service.updateItem(item.id, { expectedRevision: 4, archived: false })).toEqual({ ...restoredItem, notification: null });
     await error(await patchItem({ expectedRevision: 2, archived: false }), 409, 'REVISION_CONFLICT');
     await error(await request(`/setup/categories/${category.id}`, 'PATCH', { expectedRevision: 2, archived: false }), 409, 'REVISION_CONFLICT');
-    expect(readMenuRevision(connection)).toBe(6);
+    expect(readMenuRevision(connection)).toBe(7);
   });
 
   it('commits restoration before notification and rolls it back if the menu revision write fails', () => {
+    service.updateItem(item.id, { expectedRevision: 1, available: false });
     service.updateCategory(category.id, { expectedRevision: 1, archived: true });
-    service.updateItem(item.id, { expectedRevision: 1, archived: true });
+    service.updateItem(item.id, { expectedRevision: 2, archived: true });
     connection.sqlite.exec("CREATE TRIGGER fail_restore BEFORE UPDATE OF menu_revision ON app_state BEGIN SELECT RAISE(ABORT, 'test failure'); END");
     expect(() => service.updateCategory(category.id, { expectedRevision: 2, archived: false })).toThrow();
-    expect(() => service.updateItem(item.id, { expectedRevision: 2, archived: false })).toThrow();
-    expect(resolveItems(connection, [item.id]).items[0]).toMatchObject({ state: 'archived', item: { revision: 2 }, category: { revision: 2, archivedAt: expect.any(String) } });
-    expect(readMenuRevision(connection)).toBe(4);
+    expect(() => service.updateItem(item.id, { expectedRevision: 3, archived: false })).toThrow();
+    expect(resolveItems(connection, [item.id]).items[0]).toMatchObject({ state: 'archived', item: { revision: 3 }, category: { revision: 2, archivedAt: expect.any(String) } });
+    expect(readMenuRevision(connection)).toBe(5);
     connection.sqlite.exec('DROP TRIGGER fail_restore');
     const observer = openDatabase(filename);
     try {
       const restoredCategory = service.updateCategory(category.id, { expectedRevision: 2, archived: false });
-      const restoredItem = service.updateItem(item.id, { expectedRevision: 2, archived: false });
-      expect(menuChangedSchema.parse(restoredCategory.notification)).toMatchObject({ entityType: 'category', entityId: category.id, change: 'updated', menuRevision: 5 });
-      expect(menuChangedSchema.parse(restoredItem.notification)).toMatchObject({ entityType: 'item', entityId: item.id, change: 'updated', menuRevision: 6 });
-      expect(resolveItems(observer, [item.id]).items[0]).toMatchObject({ state: 'available', item: restoredItem.response.item, category: restoredCategory.response.category });
+      const restoredItem = service.updateItem(item.id, { expectedRevision: 3, archived: false });
+      expect(menuChangedSchema.parse(restoredCategory.notification)).toMatchObject({ entityType: 'category', entityId: category.id, change: 'updated', menuRevision: 6 });
+      expect(menuChangedSchema.parse(restoredItem.notification)).toMatchObject({ entityType: 'item', entityId: item.id, change: 'updated', menuRevision: 7 });
+      expect(resolveItems(observer, [item.id]).items[0]).toMatchObject({ state: 'unavailable', item: restoredItem.response.item, category: restoredCategory.response.category });
     } finally { observer.close(); }
   });
 

@@ -9,7 +9,7 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   apiErrorSchema, ORDER_STATUS_TRANSITIONS, orderResponseSchema, ordersChangedSchema, ordersResponseSchema,
-  type CartLine, type Category, type MenuItem, type OrderStatus
+  type CartLine, type Category, type MenuItem, type Order, type OrderStatus
 } from '@restaurant-ordering/contracts';
 import { createApp } from '../../app';
 import { openDatabase, type DatabaseConnection } from '../../db/connection';
@@ -86,6 +86,42 @@ describe('orders with isolated real SQLite files', () => {
   const patch = (id: string, body: unknown) => fetch(`${baseUrl}/${id}/status`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
   });
+
+  it('lists related orders by item identity once per order, with pagination/status filtering after renaming and archival', async () => {
+    const related: Order[] = [];
+    for (let index = 0; index < 12; index++) related.push(place(quote([
+      line(open, { openPriceMinor: 100 }), line(open, { openPriceMinor: 200 }), line(fixed)
+    ])).response.order);
+    place();
+    const cancelled = service.updateStatus(related[0]!.id, { expectedRevision: 1, status: 'cancelled' }).response.order;
+    menu.updateItem(open.id, { expectedRevision: 1, name: fixed.name, available: false });
+    menu.updateItem(open.id, { expectedRevision: 2, archived: true });
+    for (const pageNumber of [1, 2]) {
+      const response = await fetch(`${baseUrl}?itemId=${open.id}&page=${pageNumber}&pageSize=10`);
+      expect(response.status).toBe(200);
+      const result = ordersResponseSchema.parse(await response.json());
+      expect(result.total).toBe(12); expect(result.orders).toHaveLength(pageNumber === 1 ? 10 : 2);
+      expect(result.orders.every(order => related.some(entry => entry.id === order.id))).toBe(true);
+      expect(new Set(result.orders.map(order => order.id)).size).toBe(result.orders.length);
+      expect(result.ordersRevision).toBe(readOrdersRevision(connection));
+    }
+    expect(listOrders(connection, { ...page, itemId: open.id, status: 'cancelled' }).orders.map(order => order.id)).toEqual([cancelled.id]);
+    expect(listOrders(connection, { ...page, itemId: randomUUID() }).total).toBe(0);
+    const invalid = await fetch(`${baseUrl}?itemId=invalid`);
+    expect(invalid.status).toBe(400);
+    expect(getOrder(connection, related[0]!.id).order.lines.filter(entry => entry.itemId === open.id).map(entry => entry.itemName)).toEqual(['Special', 'Special']);
+  });
+
+  it('includes at most three unique immutable item image/name snapshots on each order summary', () => {
+    menu.updateItem(fixed.id, { expectedRevision: 1, imageUrl: '/images/soup.jpg' });
+    const third = menu.createItem({ categoryId: category.id, name: 'Third', pricingMode: 'fixed', priceMinor: 100, available: true }).response.item;
+    const fourth = menu.createItem({ categoryId: category.id, name: 'Fourth', pricingMode: 'fixed', priceMinor: 100, available: true }).response.item;
+    const order = place(quote([line(fixed), line(open, { openPriceMinor: 100 }), line(open, { openPriceMinor: 200 }), line(third), line(fourth)])).response.order;
+    menu.updateItem(fixed.id, { expectedRevision: 2, name: 'Later name', imageUrl: '/images/salad.jpg' });
+    const summary = listOrders(connection, page).orders.find(entry => entry.id === order.id);
+    expect(summary?.itemImages).toEqual([{ id: fixed.id, name: 'Soup', imageUrl: '/api/images/soup.jpg' }, { id: open.id, name: 'Special' }, { id: third.id, name: 'Third' }]);
+    expect(getOrder(connection, order.id).order.lines[0]?.itemName).toBe('Soup');
+  });
   async function success(response: Response, status = 200) {
     expect(response.status).toBe(status);
     expect(response.headers.get('cache-control')).toBe('no-store');
@@ -132,7 +168,8 @@ describe('orders with isolated real SQLite files', () => {
     }
     expect(service.updateStatus(order.id, { expectedRevision: order.revision, status: 'completed' }).response.order.history).toHaveLength(4);
     expect(() => service.updateStatus(order.id, { expectedRevision: 1, status: 'cancelled' })).toThrow();
-    menu.updateItem(pictured.id, { expectedRevision: pictured.revision, imageUrl: '/api/images/salad.jpg', archived: true });
+    menu.updateItem(pictured.id, { expectedRevision: pictured.revision, available: false });
+    menu.updateItem(pictured.id, { expectedRevision: pictured.revision + 1, imageUrl: '/api/images/salad.jpg', archived: true });
     expect(place(snapshot, key).response.order).toEqual(order);
     await stop(); connection = initializeDatabase({ filename }); await start();
     const retained = getOrder(connection, order.id).order;
@@ -265,7 +302,8 @@ describe('orders with isolated real SQLite files', () => {
     const key = randomUUID();
     const original = place(snapshot, key).response;
     const updated = service.updateStatus(original.order.id, { status: 'preparing', expectedRevision: 1 }).response;
-    menu.updateItem(fixed.id, { expectedRevision: 1, name: 'Edited', available: false, pricingMode: 'open', archived: true });
+    menu.updateItem(fixed.id, { expectedRevision: 1, available: false });
+    menu.updateItem(fixed.id, { expectedRevision: 2, name: 'Edited', pricingMode: 'open', archived: true });
     menu.updateCategory(category.id, { expectedRevision: 1, name: 'Changed', archived: true });
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse(snapshot.expiresAt) + 1);
     await stop();
@@ -279,7 +317,7 @@ describe('orders with isolated real SQLite files', () => {
     expect(used).toMatchObject({ details: { quoteId: snapshot.quoteId, orderId: original.order.id } });
     expect(count('orders')).toBe(1);
     expect(readOrdersRevision(connection)).toBe(2);
-    expect(readMenuRevision(connection)).toBe(5);
+    expect(readMenuRevision(connection)).toBe(6);
   });
 
   it('does not deduplicate separate independently reviewed quotes with identical contents', () => {
@@ -313,7 +351,10 @@ describe('orders with isolated real SQLite files', () => {
       if (kind === 'availability' || kind === 'toggle-back') {
         menu.updateItem(fixed.id, { expectedRevision: 1, available: false });
         if (kind === 'toggle-back') menu.updateItem(fixed.id, { expectedRevision: 2, available: true });
-      } else if (kind === 'archive-item') menu.updateItem(fixed.id, { expectedRevision: 1, archived: true });
+      } else if (kind === 'archive-item') {
+        menu.updateItem(fixed.id, { expectedRevision: 1, available: false });
+        menu.updateItem(fixed.id, { expectedRevision: 2, archived: true });
+      }
       else if (kind === 'archive-category') menu.updateCategory(category.id, { expectedRevision: 1, archived: true });
       else if (kind === 'fixed-price') menu.updateItem(fixed.id, { expectedRevision: 1, pricingMode: 'fixed', priceMinor: 900 });
       else if (kind === 'fixed-to-open') menu.updateItem(fixed.id, { expectedRevision: 1, pricingMode: 'open' });

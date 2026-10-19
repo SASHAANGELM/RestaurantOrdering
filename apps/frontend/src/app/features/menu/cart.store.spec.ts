@@ -115,7 +115,7 @@ describe('per-tab cart intent and reconciliation', () => {
     }
     revisions.set({ menuRevision: 6, ordersRevision: 0 }); TestBed.tick();
     resolve(cart, [{ itemId, state: 'available', item: open, category }]);
-    expect(cart.entries()[0]?.changes.join(' ')).toContain('Pricing mode changed');
+    expect(cart.entries()[0]?.changes.join(' ')).toContain('Pricing changed');
   });
 
   it('retains the cart and resolver snapshot on failed refresh, then retries after a sync check', () => {
@@ -126,6 +126,49 @@ describe('per-tab cart intent and reconciliation', () => {
     cart.edit(cart.lines()[0]!.id, 'quantityText', '3'); cart.discount('0.01');
     checks.update((n) => n + 1); TestBed.tick(); resolve(cart);
     expect(cart.estimate().totalMinor).toBe(86); expect(cart.resolved.error()).toBeNull();
+  });
+
+  it('applies name/image updates silently but persists accepted prices until explicit OK', () => {
+    const cart = setup(); cart.add(fixed, '2', '', 'No mustard'); TestBed.tick(); resolve(cart);
+    const id = cart.lines()[0]!.id;
+    revisions.set({ menuRevision: 2, ordersRevision: 0 }); TestBed.tick();
+    const current = { ...fixed, name: 'New name', imageUrl: '/api/images/soup.jpg', priceMinor: 50, revision: 2 };
+    resolve(cart, [{ itemId, state: 'available', item: current, category }]);
+    expect(cart.entries()[0]?.item.name).toBe('New name'); expect(cart.lines()[0]?.item.imageUrl).toBe('/api/images/soup.jpg');
+    expect(cart.entries()[0]?.eligibilityIssue).toBeNull(); expect(cart.entries()[0]?.pricingWarning).toContain('Price changed');
+    expect(cart.estimate().totalMinor).toBe(58);
+    expect(JSON.parse(saved.get(CART_STORAGE_KEY)!).lines[0].item.priceMinor).toBe(29);
+    cart.lockCheckout(true); expect(cart.acknowledgePrice(id)).toContain('pending checkout'); cart.lockCheckout(false);
+    expect(cart.acknowledgePrice(id)).toBeNull(); TestBed.tick();
+    expect(cart.entries()[0]?.changes).toEqual([]); expect(cart.estimate().totalMinor).toBe(100);
+    expect(cart.lines()[0]).toMatchObject({ quantityText: '2', comment: 'No mustard', item: current });
+    expect(JSON.parse(saved.get(CART_STORAGE_KEY)!).lines[0].item.priceMinor).toBe(50);
+  });
+
+  it('acknowledges both pricing-type changes, validates the proposed open price and refuses stale snapshots', () => {
+    const cart = setup(); cart.add(open, '2', '1.20'); TestBed.tick(); resolve(cart);
+    const id = cart.lines()[0]!.id;
+    revisions.set({ menuRevision: 2, ordersRevision: 0 }); TestBed.tick();
+    expect(cart.acknowledgePrice(id)).toContain('loading');
+    resolve(cart, [{ itemId, state: 'available', item: { ...fixed, revision: 2 }, category }]);
+    expect(cart.entries()[0]?.pricingWarning).toContain('open price to fixed price');
+    expect(cart.acknowledgePrice(id)).toBeNull(); expect(cart.estimate().totalMinor).toBe(58);
+    revisions.set({ menuRevision: 3, ordersRevision: 0 }); TestBed.tick();
+    resolve(cart, [{ itemId, state: 'available', item: { ...open, revision: 3 }, category }]);
+    expect(cart.entries()[0]?.pricingWarning).toContain('fixed price to open price');
+    cart.edit(id, 'priceText', '1.234'); expect(cart.acknowledgePrice(id)).toContain('two decimal places');
+    cart.edit(id, 'priceText', '2.50'); expect(cart.acknowledgePrice(id)).toBeNull();
+    expect(cart.estimate().totalMinor).toBe(500); expect(cart.entries()[0]?.pricingWarning).toBeNull();
+  });
+
+  it('does not warn about name and image changes and never changes frozen pending checkout data', () => {
+    const cart = setup(); cart.add(fixed, '1'); TestBed.tick(); resolve(cart);
+    revisions.set({ menuRevision: 2, ordersRevision: 0 }); TestBed.tick();
+    resolve(cart, [{ itemId, state: 'available', item: { ...fixed, name: 'New name', imageUrl: '/api/images/soup.jpg', revision: 2 }, category }]);
+    expect(cart.entries()[0]?.changes).toEqual([]); const frozen = cart.lines();
+    cart.lockCheckout(true); revisions.set({ menuRevision: 3, ordersRevision: 0 }); TestBed.tick();
+    resolve(cart, [{ itemId, state: 'available', item: { ...fixed, name: 'Later name', revision: 3 }, category }]);
+    expect(cart.lines()).toEqual(frozen);
   });
 
   it('cancels obsolete resolver requests and rejects a response below the revision watermark', () => {

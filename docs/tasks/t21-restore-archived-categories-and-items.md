@@ -22,6 +22,8 @@ Add unarchiving through the existing revision-checked category/item update APIs 
 
 Completed 2026-10-19. Both category/item APIs and Settings support revision-checked restoration without a database migration. Required `pnpm check` passes with 560 tests and both production builds; all 29 standard Chromium scenarios pass. Acceptance evidence and verification results are recorded below.
 
+Follow-up: [T22](t22-refine-item-lifecycle-and-add-item-details.md) changes item restoration to always produce Unavailable and replaces the Items archive checkbox with an Archived section. The verification below describes the original T21 behavior.
+
 ## Verification
 
 Verified on 2026-10-19 with repository-pinned **Node 24.22.0** and **pnpm 12.14.0**. Dependencies, lockfiles, database schema and migrations are unchanged.

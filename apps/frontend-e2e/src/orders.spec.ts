@@ -35,7 +35,7 @@ async function filter(page: Page, status: string) {
   await expect(page.getByRole('listbox', { name: 'Filter by status', exact: true })).not.toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Filter by status', exact: true })).toContainText(status);
 }
-const link = (page: Page, order: Order) => page.getByRole('link', { name: `Order ${order.id}`, exact: true });
+const link = (page: Page, order: Order) => page.getByRole('link', { name: `Order ${order.id.slice(0, 8)}`, exact: true });
 
 test('orders appear live, filters add/remove membership, and two independent staff browsers see progression and reconnect repair', async ({ page, browser, baseURL, request }) => {
   const item = await itemFixture(request);
@@ -67,7 +67,7 @@ test('orders appear live, filters add/remove membership, and two independent sta
     for (const client of [page, second]) {
       await expect(client.getByRole('button', { name: /^(Start preparing|Mark ready|Complete order|Cancel order)$/ })).toHaveCount(0);
     }
-    await second.getByRole('link', { name: 'Back to orders', exact: true }).click(); await filter(second, 'Completed');
+    await second.getByRole('navigation', { name: 'Breadcrumb', exact: true }).getByRole('link', { name: 'Orders', exact: true }).click(); await filter(second, 'Completed');
     await expect(link(second, order)).toHaveCount(1);
   } finally { await context.close(); }
 });

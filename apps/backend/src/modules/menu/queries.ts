@@ -7,6 +7,7 @@ import type { DatabaseConnection } from '../../db/connection';
 import { appState, categories, menuItems } from '../../db/schema';
 
 import { readSyncState } from '../realtime/sync';
+import { HttpError } from '../../middleware/errors';
 
 export const toCategory = (row: typeof categories.$inferSelect): Category => categorySchema.parse(row);
 export const toItem = (row: typeof menuItems.$inferSelect): MenuItem => {
@@ -77,14 +78,24 @@ export function resolveItems(connection: DatabaseConnection, itemIds: string[]) 
 }
 
 
-export function readCatalog(connection: DatabaseConnection) {
+export function readCatalog(connection: DatabaseConnection, setup = false) {
   return connection.sqlite.transaction(() => {
-    const activeCategories = connection.db.select().from(categories).where(isNull(categories.archivedAt))
+    const activeCategories = connection.db.select().from(categories).where(setup ? undefined : isNull(categories.archivedAt))
       .orderBy(asc(categories.sortOrder), asc(categories.id)).all().map(toCategory);
     const items = connection.db.select({ item: menuItems }).from(menuItems)
       .innerJoin(categories, eq(menuItems.categoryId, categories.id))
-      .where(and(isNull(menuItems.archivedAt), isNull(categories.archivedAt)))
+      .where(setup ? undefined : and(isNull(menuItems.archivedAt), isNull(categories.archivedAt)))
       .orderBy(desc(menuItems.available), asc(menuItems.name), asc(menuItems.id)).all().map(({ item }) => toItem(item));
     return { categories: activeCategories, items, menuRevision: readMenuRevision(connection), menuUpdatedAt: readSyncState(connection).menuUpdatedAt };
+  })();
+}
+
+export function getItemDetails(connection: DatabaseConnection, id: string) {
+  return connection.sqlite.transaction(() => {
+    const resolved = readResolvedItems(connection, [id])[0];
+    if (!resolved || resolved.state === 'missing') throw new HttpError({ code: 'NOT_FOUND', message: 'The item was not found.',
+      details: { resourceType: 'item', resourceId: id } });
+    return { item: resolved.item, category: resolved.category, menuRevision: readMenuRevision(connection),
+      menuUpdatedAt: readSyncState(connection).menuUpdatedAt };
   })();
 }

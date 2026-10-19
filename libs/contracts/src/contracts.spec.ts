@@ -90,6 +90,8 @@ describe('setup and common contracts', () => {
     expect(setupItemsQuerySchema.parse({ includeArchived: 'false' }).includeArchived).toBe(false);
     expect(setupItemsQuerySchema.parse({ includeArchived: 'true' }).includeArchived).toBe(true);
     expect(setupItemsQuerySchema.safeParse({ includeArchived: 'yes' }).success).toBe(false);
+    expect(ordersQuerySchema.parse({ itemId, page: '2', pageSize: '10' })).toEqual({ itemId, page: 2, pageSize: 10 });
+    expect(ordersQuerySchema.safeParse({ itemId: 'invalid' }).success).toBe(false);
   });
 
   it('accepts UTC timestamps, UUIDs and safe revisions only', () => {
@@ -223,6 +225,7 @@ describe('statuses, errors and socket contracts', () => {
     ['IDEMPOTENCY_CONFLICT', { idempotencyKey: itemId }],
     ['INVALID_STATUS_TRANSITION', { orderId, currentStatus: 'ready', requestedStatus: 'cancelled', allowedStatuses: ['completed'] }],
     ['CATEGORY_ARCHIVED', { categoryId }],
+    ['INVALID_ITEM_TRANSITION', { itemId, currentState: 'available', requestedState: 'archived' }],
     ['SERVICE_UNAVAILABLE', { retryAfterMs: 1000 }]
   ])('requires the documented details for %s', (code, details) => {
     const error = { code, message: 'Action required.', requestId: itemId, details };

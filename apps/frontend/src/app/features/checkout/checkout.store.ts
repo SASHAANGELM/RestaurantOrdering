@@ -46,9 +46,9 @@ export class CheckoutStore {
       quote.menuRevision >= this.sync.highest().menuRevision && Date.parse(quote.expiresAt) > this.now();
   });
   readonly canReview = computed(() => !this.busy() && !this.attempt() && !this.blocked() &&
-    this.cart.lines().length > 0 && this.cart.estimate().error === null);
+    this.cart.lines().length > 0 && this.cart.estimate().error === null && !this.cart.entries().some(line => !!line.pricingWarning));
   readonly canConfirm = computed(() => !this.busy() && !this.attempt() && !this.blocked() && this.validQuote() &&
-    !this.sync.syncing() && this.sync.error() === null);
+    !this.sync.syncing() && this.sync.error() === null && !this.cart.entries().some(line => !!line.pricingWarning));
 
   constructor() {
     const timer = window.setInterval(() => this.now.set(Date.now()), 1_000);
@@ -116,6 +116,14 @@ export class CheckoutStore {
             quote.menuRevision < this.sync.highest().menuRevision || Date.parse(quote.expiresAt) <= Date.now()) {
           this.message.set('The cart or menu changed while loading. Review again.'); return;
         }
+        if (quote.lines.some((quoted, index) => {
+          const line = this.cart.lines()[index];
+          return !line || quoted.pricingMode !== line.item.pricingMode || quoted.unitPriceMinor !== entryPrice(line);
+        })) {
+          this.sync.observe({ menuRevision: quote.menuRevision }); this.cart.resolved.reload();
+          this.message.set('Prices changed. Review the cart warnings and select OK before confirming.');
+          return;
+        }
         this.reviewedCart = fingerprint;
         this.reviewedIntentRevision = intentRevision;
         this.now.set(Date.now());
@@ -126,7 +134,7 @@ export class CheckoutStore {
           if (!this.attempt() && !this.completedOrderId()) this.message.set('The cart or connection changed during the check. Confirm again to place the current order.');
         }
       },
-      error: (error: unknown) => { this.busy.set(false); this.message.set(this.describe(error)); }
+      error: (error: unknown) => { this.busy.set(false); this.message.set(this.describe(error)); if (clientError(error).body?.code === 'CART_INVALID') this.cart.resolved.reload(); }
     });
   }
 

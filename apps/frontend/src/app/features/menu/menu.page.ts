@@ -1,4 +1,4 @@
-import { BusyButton } from '../../shared/busy-button';
+import { PageHeading } from '../../shared/page-heading';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
@@ -16,10 +16,10 @@ import { MenuStore } from './menu.store';
 
 @Component({
   selector: 'app-menu-page', providers: [MenuStore],
-  imports: [BusyButton, ReactiveFormsModule, MatButton, MatTooltip, MatFormFieldModule, MatInput, MatPaginator, LoadState, MenuItemRow, CartSummary],
+  imports: [PageHeading, ReactiveFormsModule, MatButton, MatTooltip, MatFormFieldModule, MatInput, MatPaginator, LoadState, MenuItemRow, CartSummary],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="menu-heading"><h1 id="menu-heading" tabindex="-1">Menu</h1><button class="icon-button" [appBusy]="store.catalog.loading()" [disabled]="store.catalog.loading()" mat-button (click)="reload()" aria-label="Refresh menu" matTooltip="Refresh menu"><i class="ti ti-refresh" aria-hidden="true"></i></button></div>
+    <app-page-heading title="Menu" headingId="menu-heading" refreshLabel="Refresh menu" [busy]="store.catalog.loading()" (refresh)="reload()" />
     <div class="menu-layout">
       <aside class="category-sidebar"><h2>Categories</h2><nav aria-label="Menu categories">
         <button type="button" [class.selected]="!filters.controls.categoryId.value" [attr.aria-pressed]="!filters.controls.categoryId.value" (click)="selectCategory('')" aria-label="All categories">All categories <span class="category-count">{{ availableTotal() }}</span></button>

@@ -120,3 +120,11 @@ export const menuCatalogSchema = z.strictObject({
   menuRevision: revisionSchema, menuUpdatedAt: timestampSchema.nullable().optional()
 });
 export type MenuCatalog = z.infer<typeof menuCatalogSchema>;
+
+/** Full management snapshot, including archived records and archived categories. */
+export const setupCatalogSchema = menuCatalogSchema;
+export const itemDetailsResponseSchema = z.strictObject({
+  item: menuItemSchema, category: categorySchema, menuRevision: revisionSchema,
+  menuUpdatedAt: timestampSchema.nullable().optional()
+}).refine(value => value.item.categoryId === value.category.id, 'Item category must match.');
+export type ItemDetailsResponse = z.infer<typeof itemDetailsResponseSchema>;

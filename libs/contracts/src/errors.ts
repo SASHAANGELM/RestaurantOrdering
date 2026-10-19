@@ -37,6 +37,10 @@ export const invalidStatusTransitionDetailsSchema = z.strictObject({
   allowedStatuses: z.array(orderStatusSchema).max(2)
 });
 export const categoryArchivedDetailsSchema = z.strictObject({ categoryId: idSchema });
+export const invalidItemTransitionDetailsSchema = z.strictObject({
+  itemId: idSchema, currentState: z.enum(['available', 'unavailable', 'archived']),
+  requestedState: z.enum(['available', 'unavailable', 'archived'])
+});
 export const unavailableDetailsSchema = z.strictObject({ retryAfterMs: z.int().nonnegative() });
 const errorBase = { message: z.string().min(1), requestId: idSchema };
 
@@ -53,6 +57,7 @@ export const apiErrorBodySchema = z.discriminatedUnion('code', [
   z.strictObject({ ...errorBase, code: z.literal('IDEMPOTENCY_CONFLICT'), details: idempotencyConflictDetailsSchema }),
   z.strictObject({ ...errorBase, code: z.literal('INVALID_STATUS_TRANSITION'), details: invalidStatusTransitionDetailsSchema }),
   z.strictObject({ ...errorBase, code: z.literal('CATEGORY_ARCHIVED'), details: categoryArchivedDetailsSchema }),
+  z.strictObject({ ...errorBase, code: z.literal('INVALID_ITEM_TRANSITION'), details: invalidItemTransitionDetailsSchema }),
   z.strictObject({ ...errorBase, code: z.literal('SERVICE_UNAVAILABLE'), details: unavailableDetailsSchema }),
   z.strictObject({ ...errorBase, code: z.literal('INTERNAL_ERROR') })
 ]);
@@ -76,6 +81,7 @@ export const API_ERROR_STATUS = {
   IDEMPOTENCY_CONFLICT: 409,
   INVALID_STATUS_TRANSITION: 409,
   CATEGORY_ARCHIVED: 422,
+  INVALID_ITEM_TRANSITION: 409,
   SERVICE_UNAVAILABLE: 503,
   INTERNAL_ERROR: 500
 } as const satisfies Record<ApiErrorCode, number>;

@@ -19,7 +19,6 @@ async function select(page: Page, label: string, option: string) {
 }
 async function filter(page: Page, search: string) {
   await page.getByRole('textbox', { name: 'Search items', exact: true }).fill(search);
-  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
 }
 
 test('Setup forms publish live changes, omit fixed prices for open pricing, and confirm archive eligibility', async ({ page, browser, baseURL, request }) => {
@@ -80,6 +79,9 @@ test('Setup forms publish live changes, omit fixed prices for open pricing, and 
     await expect(customerRow).toContainText('Open price');
     await expect(customerRow).not.toContainText('Unavailable');
 
+    await page.getByRole('switch', { name: `Available ${itemName}`, exact: true }).click();
+    await expect(customerRow).toContainText('Unavailable');
+
     // Escape cancels archival and restores focus to the labelled trigger.
     await expect(page.getByRole('button', { name: 'Archive item', exact: true })).toHaveCount(0);
     const archive = edit;
@@ -100,7 +102,7 @@ test('Setup forms publish live changes, omit fixed prices for open pricing, and 
     });
     expect(archivedQuote.status()).toBe(422);
     expect(await archivedQuote.json()).toMatchObject({ error: { code: 'CART_INVALID', details: { issues: [{ code: 'ITEM_ARCHIVED' }] } } });
-    await page.getByRole('checkbox', { name: 'Show archived records' }).check();
+    await page.locator('summary').filter({ hasText: 'Archived items' }).click();
     await expect(page.getByRole('listitem').filter({ hasText: itemName })).toContainText('Archived');
     await expect(page.getByRole('button', { name: `Edit item ${itemName}`, exact: true })).not.toBeVisible();
 
@@ -172,7 +174,7 @@ test('concurrent editors retain input, require revision recovery, and preserve d
   } finally { await secondContext.close(); }
 });
 
-test('Setup lists page categories and request bounded, searchable category-filtered item pages', async ({ page, request }, testInfo) => {
+test('Setup lists page categories and filter/paginate item sections entirely in memory', async ({ page, request }, testInfo) => {
   const { category, name } = await fixture(request, 'Paging');
   for (let index = 0; index < 11; index++) {
     expect((await request.post('/api/setup/items', { data: {
@@ -186,15 +188,14 @@ test('Setup lists page categories and request bounded, searchable category-filte
   await page.goto('/setup/items');
   await filter(page, name);
   await select(page, 'Filter by category', name);
-  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
-  const section = page.getByRole('region', { name: 'Items', exact: true });
-  const paginator = page.getByLabel('Item pages', { exact: true });
+  const section = page.getByRole('region', { name: 'Available items', exact: true });
+  const paginator = page.getByLabel('Available items pages', { exact: true });
+  let reads = 0; page.on('request', request => { if (request.url().includes('/api/setup/catalog')) reads++; });
   // Material's larger pointer target overlays this select; exercise its labelled keyboard control.
   await paginator.getByRole('combobox', { name: 'Items per page' }).focus();
   await page.keyboard.press('Enter');
-  const bounded = page.waitForRequest((r) => r.url().includes('/api/setup/items?') && new URL(r.url()).searchParams.get('pageSize') === '10');
   await page.getByRole('option', { name: '10', exact: true }).click();
-  expect(new URL((await bounded).url()).searchParams.get('categoryId')).toBe(category.id);
+  await expect(page.getByRole('combobox', { name: 'Filter by category', exact: true })).toContainText(category.name);
   await expect(section.getByRole('listitem')).toHaveCount(10);
   await paginator.getByRole('button', { name: 'Next page' }).click();
   await expect(section.getByRole('listitem')).toHaveCount(2);
@@ -202,6 +203,7 @@ test('Setup lists page categories and request bounded, searchable category-filte
   await filter(page, `${name} 00`);
   await expect(section.getByRole('listitem')).toHaveCount(1);
   await expect(section).toContainText('Page 1');
+  expect(reads).toBe(0);
   await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Settings' }).click();
     await page.getByRole('link', { name: /Categories.*Manage categories/ }).click();
   const categories = page.getByRole('region', { name: 'Categories', exact: true });

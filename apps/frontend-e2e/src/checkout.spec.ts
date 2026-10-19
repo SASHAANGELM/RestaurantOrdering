@@ -32,6 +32,8 @@ test('one confirm click checks current prices and places the order; late menu ch
   await page.getByRole('button', { name: 'Confirm order', exact: true }).click();
   await expect(cart(page)).toContainText('Your cart is retained.'); expect(posts).toBe(1);
   await expect(page.getByRole('button', { name: 'Review order' })).toHaveCount(0);
+  await expect(cart(page).locator('.line-warning')).toContainText('Price changed');
+  await cart(page).getByRole('button', { name: 'OK', exact: true }).click();
   await page.getByRole('button', { name: 'Confirm order', exact: true }).click();
   await expect(page).toHaveURL(/\/orders\/[a-f0-9-]+$/); expect(posts).toBe(2);
   await expect(page.locator('dl')).toContainText('$8.00');
