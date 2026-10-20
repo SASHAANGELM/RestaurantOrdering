@@ -30,6 +30,37 @@ describe('open-price dialog', () => {
   }
   afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
 
+  it('shows the fixed-price total beneath quantity and updates as quantity changes', () => {
+    const { fixture } = setup({ ...item, pricingMode: 'fixed', priceMinor: 450 });
+    const root: HTMLElement = fixture.nativeElement;
+    const quantity = root.querySelector<HTMLInputElement>('app-quantity-input input')!;
+    const total = root.querySelector('output')!;
+    expect(total.textContent).toContain('$9.00');
+    expect(total.previousElementSibling?.tagName).toBe('APP-QUANTITY-INPUT');
+    quantity.value = '3'; quantity.dispatchEvent(new Event('input')); fixture.detectChanges();
+    expect(total.textContent).toContain('$13.50');
+    quantity.value = ''; quantity.dispatchEvent(new Event('input')); fixture.detectChanges();
+    expect(total.textContent).toContain('—');
+    quantity.value = '0'; quantity.dispatchEvent(new Event('input')); fixture.detectChanges();
+    expect(total.textContent).toContain('$0.00');
+  });
+
+  it('updates open-price totals and hides the amount for invalid drafts', () => {
+    const { fixture, dialog } = setup();
+    const total = () => fixture.nativeElement.querySelector('output').textContent;
+    expect(total()).toContain('—');
+    dialog.price.setValue('4.50'); dialog.quantity.setValue('3'); fixture.detectChanges();
+    expect(total()).toContain('$13.50');
+    dialog.price.setValue('0.10'); fixture.detectChanges();
+    expect(total()).toContain('$0.30');
+    dialog.price.setValue('1.234'); fixture.detectChanges();
+    expect(total()).toContain('—');
+    dialog.price.setValue('0.00'); fixture.detectChanges();
+    expect(total()).toContain('$0.00');
+    dialog.quantity.setValue('100'); fixture.detectChanges();
+    expect(total()).toContain('—');
+  });
+
   it('shows a read-only unit price for fixed dishes and restores an existing line when reopened', () => {
     const fixed: MenuItem = { ...item, pricingMode: 'fixed', priceMinor: 750 };
     const { dialog, fixture, cart } = setup(fixed);

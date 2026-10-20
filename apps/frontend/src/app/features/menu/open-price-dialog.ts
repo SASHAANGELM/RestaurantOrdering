@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { CurrencyPipe } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogActions, MatDialogContent, MatDialogRef, MatDialogTitle } from '@angular/material/dialog';
@@ -7,17 +9,18 @@ import { MatInput } from '@angular/material/input';
 import { MatTooltip } from '@angular/material/tooltip';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
-import type { MenuItem } from '@restaurant-ordering/contracts';
+import { parseUnitPriceMinor, type MenuItem } from '@restaurant-ordering/contracts';
 import { UnitPriceField } from '../../shared/unit-price-field';
 import { ItemImage } from '../../shared/item-image';
 import { QuantityInput } from '../../shared/quantity-input';
 import { ConfirmDialog } from '../../shared/confirm-dialog';
 import { MatDialog } from '@angular/material/dialog';
 import { CartStore } from './cart.store';
+import { quantityValue } from './cart.model';
 
 @Component({
   selector: 'app-open-price-dialog', changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatTooltip, RouterLink, UnitPriceField, QuantityInput, ItemImage, ReactiveFormsModule, MatButton, MatDialogTitle, MatDialogContent, MatDialogActions, MatFormFieldModule, MatInput, MatSelectModule],
+  imports: [CurrencyPipe, MatTooltip, RouterLink, UnitPriceField, QuantityInput, ItemImage, ReactiveFormsModule, MatButton, MatDialogTitle, MatDialogContent, MatDialogActions, MatFormFieldModule, MatInput, MatSelectModule],
   template: `
     <h2 mat-dialog-title id="open-price-title">{{ selected() ? 'Edit in cart' : 'Add to cart' }}</h2>
     <mat-dialog-content><div class="dialog-item"><app-item-image [src]="data.item.imageUrl" [name]="data.item.name" /><strong>{{ data.item.name }}</strong></div>
@@ -29,7 +32,7 @@ import { CartStore } from './cart.store';
       }
       <div class="entry-controls">
         <app-unit-price-field [open]="data.item.pricingMode === 'open'" [priceMinor]="selected()?.item?.priceMinor ?? data.item.priceMinor ?? 0" [value]="price.value" [disabled]="cart.checkoutLocked()" (valueChange)="price.setValue($event)" />
-        <div class="control-field"><span>Quantity</span><app-quantity-input [min]="0" [value]="quantity.value" [disabled]="cart.checkoutLocked()" (valueChange)="quantity.setValue($event)" /></div>
+        <div class="control-field"><span>Quantity</span><app-quantity-input [min]="0" [value]="quantity.value" [disabled]="cart.checkoutLocked()" (valueChange)="quantity.setValue($event)" /><output class="item-total" aria-live="polite">@let total = totalMinor(); Total: @if (total !== null) { {{ total / 100 | currency:'USD' }} } @else { — }</output></div>
       </div>
       @if (!data.item.available) { <p role="status">This item is unavailable. You can remove it from your cart.</p> }
       @if (message()) { <p role="alert">{{ message() }}</p> }
@@ -48,7 +51,7 @@ import { CartStore } from './cart.store';
       <button mat-flat-button [disabled]="cart.checkoutLocked()" (click)="add()"><i class="ti ti-shopping-cart" aria-hidden="true"></i>{{ selected() ? 'Edit in cart' : 'Add to cart' }}</button>
     </mat-dialog-actions>
   `,
-  styles: [`mat-form-field { display: block; } .entry-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-bottom: 1rem; align-items: start; } .entry-controls > div { min-width: 0; } .control-field { display: grid; gap: .4rem; } .control-field > span { font-size: .85rem; } .dialog-item { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; } .dialog-item strong { min-width: 0; overflow-wrap: anywhere; } .comment-heading { display: flex; align-items: center; justify-content: space-between; } .comment-preview { white-space: pre-wrap; overflow-wrap: anywhere; } .delete-button { display: block; color: #b3261e; margin-top: .75rem; }`]
+  styles: [`mat-form-field { display: block; } .entry-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-bottom: 1rem; align-items: start; } .entry-controls > div { min-width: 0; } .control-field { display: grid; gap: .4rem; } .control-field > span { font-size: .85rem; } .item-total { text-align: right; } .dialog-item { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; } .dialog-item strong { min-width: 0; overflow-wrap: anywhere; } .comment-heading { display: flex; align-items: center; justify-content: space-between; } .comment-preview { white-space: pre-wrap; overflow-wrap: anywhere; } .delete-button { display: block; color: #b3261e; margin-top: .75rem; }`]
 })
 export class OpenPriceDialog {
   readonly data = inject<{ item: MenuItem; quantity?: string }>(MAT_DIALOG_DATA);
@@ -62,6 +65,16 @@ export class OpenPriceDialog {
   readonly comment = new FormControl(this.selected()?.comment ?? '', { nonNullable: true });
   readonly message = signal<string | null>(null);
   readonly commentOpen = signal(false);
+  private readonly priceText = toSignal(this.price.valueChanges, { initialValue: this.price.value });
+  private readonly quantityText = toSignal(this.quantity.valueChanges, { initialValue: this.quantity.value });
+  readonly totalMinor = computed((): number | null => {
+    try {
+      const item = this.selected()?.item ?? this.data.item;
+      const price = item.pricingMode === 'fixed' ? item.priceMinor : parseUnitPriceMinor(this.priceText());
+      const quantity = this.quantityText() === '0' ? 0 : quantityValue(this.quantityText());
+      return price * quantity;
+    } catch { return null; }
+  });
   removeComment() { if (!this.cart.checkoutLocked()) { this.comment.setValue(''); this.commentOpen.set(false); } }
   select(id: string) { this.selectedId.set(id); this.quantity.setValue(this.selected()?.quantityText ?? '1'); this.price.setValue(this.selected()?.priceText ?? ''); this.comment.setValue(this.selected()?.comment ?? ''); this.commentOpen.set(false); this.message.set(null); }
   private readonly confirmation = inject(MatDialog);
