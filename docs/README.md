@@ -11,6 +11,7 @@ For architecture and product context, read in this order:
 
 1. [Architecture](architecture.md): boundaries, technology decisions, data model, frontend design, and deployment.
 2. [HTTP and realtime contracts](contracts.md): endpoints, checkout safety, Socket.IO synchronization, and error behavior.
+   [API, realtime, and database reference](api-reference.md) is the practical companion: every endpoint with example payloads, each socket message, and every table.
 3. [Implementation plan](implementation-plan.md): milestones, seven-day schedule, verification, and scope limits.
 4. [Implementation tasks](tasks/README.md): task table with statuses and links to individual task files.
 5. [Original assignment](assignment.md): preserved requirements.
