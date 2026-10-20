@@ -58,10 +58,10 @@ test('production 5,000-item menu has bounded DOM and measured feedback/layout un
   const initialReadyMs = Date.now() - start;
   const add = page.getByRole('button', { name: 'Add Menu item 0001 to cart', exact: true });
   await add.click();
-  await expect(page.getByRole('dialog', { name: 'Set quantity' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Add to cart' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.menuPerformance.interactionMs.length)).toBe(1);
-  await page.getByRole('dialog', { name: 'Set quantity' }).getByRole('button', { name: 'Add to cart', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Set quantity' })).not.toBeVisible();
+  await page.getByRole('dialog', { name: 'Add to cart' }).getByRole('button', { name: 'Add to cart', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Add to cart' })).not.toBeVisible();
   await expect(menu.getByRole('listitem')).toHaveCount(50);
   const domCounts: number[] = [];
   for (let index = 0; index < 4; index++) {
