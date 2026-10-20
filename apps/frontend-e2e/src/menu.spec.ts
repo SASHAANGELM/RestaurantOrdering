@@ -102,9 +102,13 @@ test('menu filters locally by search/category and bounds rendered pages and reta
   expect(searches).toEqual([]);
   await page.getByRole('button', { name: `Add ${fixed.name} to cart`, exact: true }).click();
   const dialog = page.getByRole('dialog', { name: /^(Add to cart|Edit in cart)$/, exact: true });
+  // Let the dialog's first-tabbable autofocus settle before typing, otherwise it can move focus away after fill().
+  await expect(dialog.getByRole('button', { name: 'Decrease Quantity', exact: true })).toBeFocused();
   const quantity = dialog.getByRole('spinbutton', { name: 'Quantity', exact: true }); await quantity.fill('3');
   expect((await request.patch(`/api/setup/items/${fixed.id}`, { data: { expectedRevision: 1, description: 'Updated without stealing focus' } })).ok()).toBe(true);
-  await expect(menu).toContainText('Updated without stealing focus'); await expect(quantity).toBeFocused(); await expect(quantity).toHaveValue('3');
+  // The open modal marks the page behind it aria-hidden, so look up the menu region including hidden elements.
+  await expect(page.getByRole('region', { name: 'Menu items', includeHidden: true })).toContainText('Updated without stealing focus');
+  await expect(quantity).toBeFocused(); await expect(quantity).toHaveValue('3');
   await dialog.getByRole('button', { name: 'Add to cart', exact: true }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Cart', exact: true }).click();
   await expect(page.getByRole('spinbutton', { name: `Cart quantity for ${fixed.name}`, exact: true })).toHaveValue('3');
