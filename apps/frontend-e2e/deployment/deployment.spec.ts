@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { io, type Socket } from 'socket.io-client';
-import { itemsResponseSchema, orderResponseSchema, quoteResponseSchema, type ServerToClientEvents, type ClientToServerEvents } from '@restaurant-ordering/contracts';
+import { menuCatalogSchema, orderResponseSchema, quoteResponseSchema, type ServerToClientEvents, type ClientToServerEvents } from '@restaurant-ordering/contracts';
 
 const exec = promisify(execFile);
 async function docker(args: string[]) {
@@ -62,8 +62,8 @@ test('production containers proxy, persist, shut down cleanly, and recover after
   expect(asset.ok()).toBe(true);
   expect(asset.headers()['cache-control']).toContain('immutable');
 
-  const menu = itemsResponseSchema.parse(await (await request.get('/api/menu/items')).json());
-  expect(menu.total).toBe(36);
+  const menu = menuCatalogSchema.parse(await (await request.get('/api/menu/catalog')).json());
+  expect(menu.items).toHaveLength(36);
   const item = menu.items.find((entry) => entry.pricingMode === 'fixed' && entry.available)!;
   expect(item).toBeTruthy();
   const polling = socket(baseURL!, ['polling']);
@@ -129,7 +129,7 @@ test('production containers proxy, persist, shut down cleanly, and recover after
     const replay = await request.post('/api/orders', { headers: { 'Idempotency-Key': key }, data: { quoteId: quote.quoteId } });
     expect(replay.ok()).toBe(true);
     expect(orderResponseSchema.parse(await replay.json())).toEqual(original);
-    expect(itemsResponseSchema.parse(await (await request.get('/api/menu/items')).json()).total).toBe(36);
+    expect(menuCatalogSchema.parse(await (await request.get('/api/menu/catalog')).json()).items).toHaveLength(36);
     await page.goto(`/orders/${original.order.id}`);
     await expect(page.getByRole('main')).toContainText(item.name);
   } finally {

@@ -2,12 +2,12 @@ import { gzipSync } from 'node:zlib';
 import { Router } from 'express';
 import { z } from 'zod';
 import {
-  createCategorySchema, createItemSchema, idSchema, menuCategoriesQuerySchema, menuItemsQuerySchema, resolveItemsRequestSchema,
-  setupCategoriesQuerySchema, setupItemsQuerySchema, updateCategorySchema, updateItemSchema
+  createCategorySchema, createItemSchema, idSchema, resolveItemsRequestSchema, setupCategoriesQuerySchema,
+  updateCategorySchema, updateItemSchema
 } from '@restaurant-ordering/contracts';
 import type { DatabaseConnection } from '../../db/connection';
 import { validateRequest } from '../../middleware/validation';
-import { listCategories, listItems, resolveItems, readCatalog, getItemDetails } from './queries';
+import { listCategories, resolveItems, readCatalog, getItemDetails } from './queries';
 import { createMenuService } from './service';
 import type { Notifications } from '../realtime/server';
 
@@ -30,19 +30,9 @@ export function createMenuRouter(connection: DatabaseConnection, notifications?:
     const { id } = validateRequest(idParamsSchema, request.params, 'params');
     response.json(getItemDetails(connection, id));
   });
-  router.get('/menu/categories', (request, response) => {
-    const query = validateRequest(menuCategoriesQuerySchema, request.query, 'query');
-    response.json(listCategories(connection, false, query.search ?? ''));
-  });
   router.get('/setup/categories', (request, response) => {
     const query = validateRequest(setupCategoriesQuerySchema, request.query, 'query');
     response.json(listCategories(connection, query.includeArchived));
-  });
-  router.get('/menu/items', (request, response) => {
-    response.json(listItems(connection, validateRequest(menuItemsQuerySchema, request.query, 'query')));
-  });
-  router.get('/setup/items', (request, response) => {
-    response.json(listItems(connection, validateRequest(setupItemsQuerySchema, request.query, 'query'), true));
   });
   router.post('/menu/resolve', (request, response) => {
     const body = validateRequest(resolveItemsRequestSchema, request.body, 'body');

@@ -6,14 +6,14 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   apiErrorSchema, menuCatalogSchema, categoriesResponseSchema, categoryMutationResponseSchema, itemMutationResponseSchema,
-  itemsResponseSchema, menuChangedSchema, resolveItemsResponseSchema, type Category, type MenuItem
+  menuChangedSchema, setupCatalogSchema, resolveItemsResponseSchema, type Category, type MenuItem
 } from '@restaurant-ordering/contracts';
 import { createApp } from '../../app';
 import { openDatabase, type DatabaseConnection } from '../../db/connection';
 import { initializeDatabase } from '../../db/initialize';
 import { seedDatabase } from '../../db/seed';
 import { HttpError } from '../../middleware/errors';
-import { listCategories, listItems, readMenuRevision, readResolvedItems, resolveItems } from './queries';
+import { listCategories, readCatalog, readMenuRevision, readResolvedItems, resolveItems } from './queries';
 import { createMenuService } from './service';
 
 describe('menu APIs and services with isolated real SQLite files', () => {
@@ -48,7 +48,6 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     rmSync(directory, { recursive: true, force: true });
   });
 
-  const page = { page: 1, pageSize: 50 };
   async function request(path: string, method = 'GET', body?: unknown) {
     return fetch(`${baseUrl}${path}`, { method,
       ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) });
@@ -163,28 +162,20 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     } finally { reopened.close(); }
   });
 
-  it('counts available matches across pages and sorts unavailable items last', async () => {
+  it('sorts unavailable catalog items last', async () => {
     service.createItem({ categoryId: category.id, name: 'Alpha soup', pricingMode: 'fixed', priceMinor: 100, available: false });
     service.createItem({ categoryId: category.id, name: 'Zucchini soup', pricingMode: 'fixed', priceMinor: 100, available: true });
-    const other = service.createCategory({ name: 'Other', sortOrder: 0 }).response.category;
-    service.createItem({ categoryId: other.id, name: 'Zucchini salad', pricingMode: 'fixed', priceMinor: 100, available: true });
-    const result = categoriesResponseSchema.parse(await (await request('/menu/categories?search=zucchini')).json());
-    expect(result.categories.find((entry) => entry.id === category.id)?.availableCount).toBe(1);
-    expect(result.categories.find((entry) => entry.id === other.id)?.availableCount).toBe(1);
-    expect(result.menuUpdatedAt).toMatch(/^2026-/);
-    const unfiltered = categoriesResponseSchema.parse(await (await request('/menu/categories')).json());
-    expect(unfiltered.categories.find((entry) => entry.id === category.id)?.availableCount).toBe(2);
-    const first = listItems(connection, { page: 1, pageSize: 2 });
-    expect(first.items.every((entry) => entry.available)).toBe(true);
-    const full = listItems(connection, { page: 1, pageSize: 50 });
-    expect(full.items.at(-1)?.name).toBe('Alpha soup');
+    const catalog = menuCatalogSchema.parse(await (await request('/menu/catalog')).json());
+    expect(catalog.menuUpdatedAt).toMatch(/^2026-/);
+    expect(catalog.items.slice(0, 2).every((entry) => entry.available)).toBe(true);
+    expect(catalog.items.at(-1)?.name).toBe('Alpha soup');
   });
 
   it('persists item photos through create, update, list and resolve, and supports clearing', async () => {
     const created = itemMutationResponseSchema.parse(await (await request('/setup/items', 'POST', {
       categoryId: category.id, name: 'Photographed salad', pricingMode: 'fixed', priceMinor: 850, available: true, imageUrl: '/images/salad.jpg'
     })).json()).item;
-    expect(listItems(connection, page).items.find((entry) => entry.id === created.id)?.imageUrl).toBe('/api/images/salad.jpg');
+    expect(readCatalog(connection).items.find((entry) => entry.id === created.id)?.imageUrl).toBe('/api/images/salad.jpg');
     const updated = itemMutationResponseSchema.parse(await (await request(`/setup/items/${created.id}`, 'PATCH', {
       expectedRevision: 1, imageUrl: 'https://example.com/dish.jpg'
     })).json()).item;
@@ -219,7 +210,7 @@ describe('menu APIs and services with isolated real SQLite files', () => {
   ])('rejects invalid item creation pricing %j', async (pricing) => {
     await error(await request('/setup/items', 'POST', { categoryId: category.id, name: 'Bad', available: true, ...pricing }),
       400, 'VALIDATION_ERROR');
-    expect(listItems(connection, page).total).toBe(1);
+    expect(readCatalog(connection).items).toHaveLength(1);
     expect(readMenuRevision(connection)).toBe(2);
   });
 
@@ -270,11 +261,12 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     const archive = categoryMutationResponseSchema.parse(await (await request(`/setup/categories/${category.id}`, 'PATCH',
       { expectedRevision: 1, archived: true })).json());
     expect(archive.category.archivedAt).not.toBeNull();
-    expect(categoriesResponseSchema.parse(await (await request('/menu/categories')).json()).categories).toEqual([]);
+    const menu = menuCatalogSchema.parse(await (await request('/menu/catalog')).json());
+    expect(menu.categories).toEqual([]);
+    expect(menu.items).toEqual([]);
     expect(categoriesResponseSchema.parse(await (await request('/setup/categories')).json()).categories).toEqual([]);
     expect(categoriesResponseSchema.parse(await (await request('/setup/categories?includeArchived=true')).json()).categories).toHaveLength(1);
-    expect(itemsResponseSchema.parse(await (await request('/menu/items')).json()).total).toBe(0);
-    expect(itemsResponseSchema.parse(await (await request('/setup/items')).json()).total).toBe(1);
+    expect(setupCatalogSchema.parse(await (await request('/setup/catalog')).json()).items).toHaveLength(1);
     const resolved = resolveItemsResponseSchema.parse(await (await request('/menu/resolve', 'POST', { itemIds: [item.id] })).json());
     expect(resolved.items[0]).toMatchObject({ state: 'category-archived', item: { archivedAt: null, revision: 1 } });
     const checkoutRead = connection.sqlite.transaction(() => readResolvedItems(connection, [item.id]))();
@@ -284,7 +276,7 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     expect(readMenuRevision(connection)).toBe(3);
     const active = service.createCategory({ name: 'Active', sortOrder: 1 }).response.category;
     service.updateItem(item.id, { expectedRevision: 1, categoryId: active.id });
-    expect(listItems(connection, page).total).toBe(1);
+    expect(readCatalog(connection).items).toHaveLength(1);
     expect(resolveItems(connection, [item.id]).items[0]?.state).toBe('available');
   });
 
@@ -300,9 +292,10 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     expect(resolved.items.map((entry) => [entry.itemId, entry.state])).toEqual([
       [unavailable.id, 'unavailable'], [missing, 'missing'], [item.id, 'archived'], [active.id, 'available']
     ]);
-    expect(itemsResponseSchema.parse(await (await request('/menu/items')).json()).items).toHaveLength(2);
-    expect(itemsResponseSchema.parse(await (await request('/setup/items')).json()).total).toBe(2);
-    expect(itemsResponseSchema.parse(await (await request('/setup/items?includeArchived=true')).json()).total).toBe(3);
+    expect(menuCatalogSchema.parse(await (await request('/menu/catalog')).json()).items).toHaveLength(2);
+    const setup = setupCatalogSchema.parse(await (await request('/setup/catalog')).json());
+    expect(setup.items).toHaveLength(3);
+    expect(setup.items.filter((entry) => entry.archivedAt === null)).toHaveLength(2);
     service.updateCategory(category.id, { expectedRevision: 1, archived: true });
     expect(resolveItems(connection, [item.id, unavailable.id]).items.map((entry) => entry.state)).toEqual(['archived', 'category-archived']);
   });
@@ -332,7 +325,7 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     expect(restoredItem).toMatchObject({ item: { ...item, available: false, revision: 4, updatedAt: expect.any(String) }, menuRevision: 7 });
     expect(menuCatalogSchema.parse(await (await request('/menu/catalog')).json()).items).toEqual([restoredItem.item]);
     expect(categoriesResponseSchema.parse(await (await request('/setup/categories')).json()).categories).toEqual([restoredCategory.category]);
-    expect(itemsResponseSchema.parse(await (await request('/setup/items')).json()).items).toEqual([restoredItem.item]);
+    expect(setupCatalogSchema.parse(await (await request('/setup/catalog')).json()).items).toEqual([restoredItem.item]);
     connection.close(); connection = openDatabase(filename);
     expect(resolveItems(connection, [item.id]).items[0]).toMatchObject({ state: 'unavailable', item: restoredItem.item, category: restoredCategory.category });
     expect(readMenuRevision(connection)).toBe(7);
@@ -347,13 +340,13 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     const restored = service.updateItem(unavailable.id, { expectedRevision: 2, archived: false }).response.item;
     expect(restored).toMatchObject({ available: false, archivedAt: null, revision: 3, pricingMode: 'open', priceMinor: null });
     expect(resolveItems(connection, [unavailable.id]).items[0]?.state).toBe('category-archived');
-    expect(listItems(connection, page).items).toEqual([]);
+    expect(readCatalog(connection).items).toEqual([]);
     service.updateCategory(category.id, { expectedRevision: 2, archived: false });
     const states = resolveItems(connection, [item.id, unavailable.id, individuallyArchived.id]).items;
     expect(states.map((entry) => entry.state)).toEqual(['available', 'unavailable', 'archived']);
     expect(states[0]).toMatchObject({ item: { revision: 1 } });
     expect(states[2]).toMatchObject({ item: archived });
-    expect(listItems(connection, page).items.map((entry) => entry.id)).toEqual([item.id, unavailable.id]);
+    expect(readCatalog(connection).items.map((entry) => entry.id)).toEqual([item.id, unavailable.id]);
   });
 
   it('revision-checks repeated restores without changing timestamps or publishing no-op notifications', async () => {
@@ -421,7 +414,7 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     expect(() => service.createCategory({ name: 'Must roll back', sortOrder: 0 })).toThrow();
     expect(() => service.createItem({ categoryId: category.id, name: 'Must roll back', pricingMode: 'open', available: true })).toThrow();
     expect(listCategories(connection).categories).toEqual([category]);
-    expect(listItems(connection, page).items).toEqual([item]);
+    expect(readCatalog(connection).items).toEqual([item]);
     expect(readMenuRevision(connection)).toBe(2);
   });
 
@@ -438,21 +431,19 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     expect((await patchItem({ expectedRevision: 1, name: 'Recovered' })).status).toBe(200);
   });
 
-  it.each(['page=0', 'pageSize=101', 'pageSize=-1', 'page=1e2', 'page=1&page=2', 'categoryId=bad',
-    'search=' + 'x'.repeat(121), 'unknown=true', 'includeArchived=true'])('rejects invalid menu query %s', async (query) => {
-    await error(await request(`/menu/items?${query}`), 400, 'VALIDATION_ERROR');
+  it.each(['page=1', 'search=soup', 'includeArchived=true'])('rejects catalog query parameters %s', async (query) => {
+    await error(await request(`/menu/catalog?${query}`), 400, 'VALIDATION_ERROR');
+    await error(await request(`/setup/catalog?${query}`), 400, 'VALIDATION_ERROR');
   });
 
   it.each(['includeArchived=1', 'includeArchived=True', 'includeArchived=true&includeArchived=false', 'unknown=true'])(
-    'rejects invalid Setup queries %s', async (query) => {
-      await error(await request(`/setup/items?${query}`), 400, 'VALIDATION_ERROR');
+    'rejects invalid Setup category queries %s', async (query) => {
       await error(await request(`/setup/categories?${query}`), 400, 'VALIDATION_ERROR');
     });
 
   it('validates IDs, category query fields, and bounded distinct resolution input', async () => {
     await error(await request('/setup/items/bad', 'PATCH', { expectedRevision: 1, name: 'x' }), 400, 'VALIDATION_ERROR');
     await error(await request('/setup/categories/bad', 'PATCH', { expectedRevision: 1, name: 'x' }), 400, 'VALIDATION_ERROR');
-    await error(await request('/menu/categories?includeArchived=true'), 400, 'VALIDATION_ERROR');
     for (const body of [{ itemIds: [] }, { itemIds: [item.id, item.id] }, { itemIds: ['bad'] },
       { itemIds: Array.from({ length: 101 }, () => randomUUID()) }, { itemIds: [item.id], unknown: true }]) {
       await error(await request('/menu/resolve', 'POST', body), 400, 'VALIDATION_ERROR');
@@ -461,25 +452,18 @@ describe('menu APIs and services with isolated real SQLite files', () => {
     expect(resolveItemsResponseSchema.parse(await (await request('/menu/resolve', 'POST', { itemIds: ids })).json()).items).toHaveLength(100);
   });
 
-  it('uses literal case-insensitive name search, category filtering, and deterministic ties', async () => {
+  it('orders categories and catalog items deterministically, including ties', async () => {
     const other = service.createCategory({ name: 'Other', sortOrder: -5 }).response.category;
     const special = service.createItem({ categoryId: other.id, name: '100%_Soup', pricingMode: 'open', available: false }).response.item;
     const twin = service.createItem({ categoryId: category.id, name: item.name, pricingMode: 'open', available: true }).response.item;
-    const result = itemsResponseSchema.parse(await (await request(`/menu/items?categoryId=${other.id}&search=SOUP`)).json());
-    expect(result.items).toEqual([special]);
-    for (const search of ['%', '_', "' OR 1=1 --"]) {
-      const found = itemsResponseSchema.parse(await (await request(`/menu/items?search=${encodeURIComponent(search)}`)).json());
-      expect(found.total).toBe(search === "' OR 1=1 --" ? 0 : 1);
-    }
-    expect(listItems(connection, { ...page, categoryId: category.id }).items.map((entry) => entry.id)).toEqual([item.id, twin.id].sort());
+    const catalog = menuCatalogSchema.parse(await (await request('/menu/catalog')).json());
+    expect(catalog.items.map((entry) => entry.id)).toEqual([...[item.id, twin.id].sort(), special.id]);
     expect(listCategories(connection).categories.map((entry) => entry.id)).toEqual([other.id, category.id]);
     service.updateCategory(other.id, { expectedRevision: 1, sortOrder: 0 });
     expect(listCategories(connection).categories.map((entry) => entry.id)).toEqual([other.id, category.id].sort());
-    const empty = itemsResponseSchema.parse(await (await request(`/menu/items?categoryId=${randomUUID()}`)).json());
-    expect(empty.total).toBe(0);
   });
 
-  it.each(['small', 'large'] as const)('returns bounded deterministic pages and off-page resolution with the %s fixture', async (mode) => {
+  it.each(['small', 'large'] as const)('returns the complete catalog and off-catalog-page resolution with the %s fixture', async (mode) => {
     const fixture = initializeDatabase({ filename: join(directory, `${mode}.sqlite`) });
     const fixtureServer = createServer(createApp({ connection: fixture, jsonBodyLimitBytes: 65536, reportError: vi.fn() }));
     try {
@@ -488,61 +472,47 @@ describe('menu APIs and services with isolated real SQLite files', () => {
       const address = fixtureServer.address();
       if (!address || typeof address === 'string') throw new Error('Missing fixture listener.');
       const url = `http://127.0.0.1:${address.port}/api`;
-      const defaults = itemsResponseSchema.parse(await (await fetch(`${url}/menu/items`)).json());
-      expect(defaults).toMatchObject({ page: 1, pageSize: 50, total: mode === 'small' ? 36 : 5000, menuRevision: 1 });
-      expect(defaults.items).toHaveLength(mode === 'small' ? 36 : 50);
-      const first = itemsResponseSchema.parse(listItems(fixture, { page: 1, pageSize: 5 }));
-      const second = itemsResponseSchema.parse(listItems(fixture, { page: 2, pageSize: 5 }));
-      expect(itemsResponseSchema.parse(await (await fetch(`${url}/menu/items?page=2&pageSize=5`)).json())).toEqual(second);
+      const catalog = menuCatalogSchema.parse(await (await fetch(`${url}/menu/catalog`)).json());
+      expect(catalog).toMatchObject({ menuRevision: 1 });
+      expect(catalog.items).toHaveLength(mode === 'small' ? 36 : 5000);
+      expect(new Set(catalog.items.map((entry) => entry.id)).size).toBe(catalog.items.length);
+      expect(readCatalog(fixture)).toEqual(catalog);
+      const firstCategory = catalog.categories[0]!.id;
+      expect(catalog.items.filter((entry) => entry.categoryId === firstCategory)).toHaveLength(mode === 'small' ? 6 : 100);
+      const last = catalog.items.at(-1)!;
       const resolvedResponse = await fetch(`${url}/menu/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemIds: [second.items[0]!.id] }) });
-      expect(resolveItemsResponseSchema.parse(await resolvedResponse.json()).items[0]).toMatchObject({ item: second.items[0] });
-      expect(first.total).toBe(mode === 'small' ? 36 : 5000);
-      expect(first.items).toHaveLength(5);
-      expect(second.items).toHaveLength(5);
-      expect(new Set([...first.items, ...second.items].map((entry) => entry.id)).size).toBe(10);
-      expect(listItems(fixture, { page: 1, pageSize: 5 })).toEqual(first);
-      expect(listItems(fixture, { page: Number.MAX_SAFE_INTEGER, pageSize: 100 }).items).toEqual([]);
-      expect(listItems(fixture, { page: 1, pageSize: 100 }).items.length).toBeLessThanOrEqual(100);
-      const categories = listCategories(fixture);
-      const filtered = listItems(fixture, { ...page, categoryId: categories.categories[0]!.id });
-      expect(filtered.total).toBe(mode === 'small' ? 6 : 100);
-      expect(filtered.items.every((entry) => entry.categoryId === categories.categories[0]!.id)).toBe(true);
-      expect(resolveItems(fixture, [second.items[0]!.id]).items[0]).toMatchObject({ item: second.items[0] });
-      if (mode === 'large') {
-        expect(listItems(fixture, { ...page, search: 'Menu item 5000' }).items[0]?.name).toBe('Menu item 5000');
-        expect(listItems(fixture, { page: 50, pageSize: 100 }).items).toHaveLength(100);
-        expect(listItems(fixture, { page: 51, pageSize: 100 }).items).toEqual([]);
-      }
+        body: JSON.stringify({ itemIds: [last.id] }) });
+      expect(resolveItemsResponseSchema.parse(await resolvedResponse.json()).items[0]).toMatchObject({ item: last });
+      if (mode === 'large') expect(catalog.items.some((entry) => entry.name === 'Menu item 5000')).toBe(true);
     } finally {
       await new Promise<void>((resolve, reject) => fixtureServer.close((error) => error ? reject(error) : resolve()));
       fixture.close();
     }
   });
 
-  it.each(['categories', 'items', 'resolve'] as const)('reads %s rows and revision from one snapshot during a concurrent commit', (kind) => {
+  it.each(['categories', 'catalog', 'resolve'] as const)('reads %s rows and revision from one snapshot during a concurrent commit', (kind) => {
     const writer = openDatabase(filename);
     const original = connection.db.select.bind(connection.db);
     let selects = 0;
     let committed = false;
     // Commit on a separate WAL connection between row/count reads and revision read.
     const spy = vi.spyOn(connection.db, 'select').mockImplementation(((...args: Parameters<typeof original>) => {
-      if (++selects === (kind === 'items' ? 3 : 2)) {
+      if (++selects === (kind === 'catalog' ? 3 : 2)) {
         createMenuService(writer).updateCategory(category.id, { expectedRevision: 1, archived: true });
         committed = true;
       }
       return original(...args);
     }) as typeof original);
     try {
-      const snapshot = kind === 'items' ? listItems(connection, page) : kind === 'categories' ? listCategories(connection) : resolveItems(connection, [item.id]);
+      const snapshot = kind === 'catalog' ? readCatalog(connection) : kind === 'categories' ? listCategories(connection) : resolveItems(connection, [item.id]);
       expect(committed).toBe(true);
       expect(snapshot.menuRevision).toBe(2);
-      if (kind === 'items') expect(snapshot).toMatchObject({ total: 1, items: [item] });
+      if (kind === 'catalog') expect(snapshot).toMatchObject({ categories: [category], items: [item] });
       else if (kind === 'categories') expect(snapshot).toMatchObject({ categories: [category] });
       else expect(snapshot).toMatchObject({ items: [{ state: 'available', item }] });
       spy.mockRestore();
       expect(readMenuRevision(connection)).toBe(3);
-      expect(listItems(connection, page).total).toBe(0);
+      expect(readCatalog(connection).items).toEqual([]);
     } finally { spy.mockRestore(); writer.close(); }
   });
 

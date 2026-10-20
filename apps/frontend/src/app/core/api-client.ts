@@ -5,12 +5,12 @@ import { ZodError, type ZodType } from 'zod';
 import {
   apiErrorSchema, menuCatalogSchema, setupCatalogSchema, itemDetailsResponseSchema, categoriesResponseSchema, categoryMutationResponseSchema, confirmOrderSchema,
   createCategorySchema, createItemSchema, createQuoteSchema, idempotencyKeySchema, idSchema,
-  itemMutationResponseSchema, itemsResponseSchema, menuItemsQuerySchema, orderResponseSchema,
+  itemMutationResponseSchema, orderResponseSchema,
   ordersQuerySchema, ordersResponseSchema, quoteResponseSchema, resolveItemsRequestSchema,
-  resolveItemsResponseSchema, setupCategoriesQuerySchema, setupItemsQuerySchema, syncStateSchema,
+  resolveItemsResponseSchema, setupCategoriesQuerySchema, syncStateSchema,
   updateCategorySchema, updateItemSchema, updateOrderStatusSchema,
   type ApiErrorBody, type ConfirmOrder, type CreateCategory, type CreateItem, type CreateQuote,
-  type MenuItemsQuery, type OrdersQuery, type ResolveItemsRequest, type SetupItemsQuery,
+  type OrdersQuery, type ResolveItemsRequest,
   type UpdateCategory, type UpdateItem, type UpdateOrderStatus
 } from '@restaurant-ordering/contracts';
 
@@ -65,16 +65,9 @@ export class ApiClient {
   catalog() { return this.request('GET', '/menu/catalog', menuCatalogSchema); }
   setupCatalog() { return this.request('GET', '/setup/catalog', setupCatalogSchema); }
   item(id: string) { return this.send(() => this.request('GET', `/items/${idSchema.parse(id)}`, itemDetailsResponseSchema)); }
-  categories(search = '') { return this.request('GET', '/menu/categories', categoriesResponseSchema, { params: search ? { search } : {} }); }
   setupCategories(includeArchived = false) {
     return this.send(() => this.request('GET', '/setup/categories', categoriesResponseSchema,
       { params: setupCategoriesQuerySchema.parse({ includeArchived }) }));
-  }
-  items(query: MenuItemsQuery) {
-    return this.send(() => this.request('GET', '/menu/items', itemsResponseSchema, { params: menuItemsQuerySchema.parse(query) }));
-  }
-  setupItems(query: SetupItemsQuery) {
-    return this.send(() => this.request('GET', '/setup/items', itemsResponseSchema, { params: setupItemsQuerySchema.parse(query) }));
   }
   resolveItems(body: ResolveItemsRequest) {
     return this.send(() => this.request('POST', '/menu/resolve', resolveItemsResponseSchema, { body: resolveItemsRequestSchema.parse(body) }));

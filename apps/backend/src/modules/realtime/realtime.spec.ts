@@ -293,7 +293,7 @@ describe('Socket.IO and revision synchronization with isolated real databases', 
     const announced = await sync();
     expect(announced.menuRevision).toBeGreaterThan(applied.menuRevision);
     expect(announced.ordersRevision).toBeGreaterThan(applied.ordersRevision);
-    const menu = await (await request('/menu/items')).json();
+    const menu = await (await request('/menu/catalog')).json();
     expect(menu).toMatchObject({ menuRevision: announced.menuRevision, items: [{ id: item.id, priceMinor: 400 }] });
     const preparing = ordersResponseSchema.parse(await (await request('/orders?status=preparing')).json());
     expect(preparing.ordersRevision).toBe(announced.ordersRevision);

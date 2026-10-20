@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   API_ERROR_STATUS, apiErrorSchema, cartIntentSchema, categoriesResponseSchema,
   categorySchema, confirmOrderSchema, createCategorySchema, createItemSchema,
-  itemsResponseSchema, menuChangedSchema, menuItemSchema, menuItemsQuerySchema, moneyMinorSchema, orderResponseSchema, ordersChangedSchema,
+  menuChangedSchema, menuItemSchema, menuItemsQuerySchema, moneyMinorSchema, orderResponseSchema, ordersChangedSchema,
   ordersQuerySchema, paginationQuerySchema, quoteResponseSchema, quoteSnapshotSchema,
   resolveItemsRequestSchema, resolveItemsResponseSchema, serverEventSchemas, setupItemsQuerySchema,
   snapshotLineSchema, syncStateSchema, timestampSchema, updateCategorySchema, updateItemSchema,
@@ -163,7 +163,6 @@ describe('cart, quote and order snapshots', () => {
     expect(menuItemSchema.safeParse({ ...item, priceMinor: 100 }).success).toBe(false);
     expect(resolveItemsResponseSchema.safeParse({ items: [{ itemId, state: 'available', item, category }], menuRevision: 1 }).success).toBe(true);
     expect(resolveItemsResponseSchema.safeParse({ items: [{ itemId: orderId, state: 'available', item, category }], menuRevision: 1 }).success).toBe(false);
-    expect(itemsResponseSchema.safeParse({ items: [item], total: 0, page: 1, pageSize: 50, menuRevision: 1 }).success).toBe(false);
   });
 });
 

@@ -88,7 +88,7 @@ Example validation error (`GET /api/orders?pageSize=500`):
 
 ### 2.3 Endpoint list
 
-"UI" shows where the Angular app uses the endpoint. Endpoints marked *legacy* are working and tested but the current UI uses the full catalog endpoints instead.
+"UI" shows where the Angular app uses the endpoint.
 
 | # | Method and path | What it does | UI |
 | --- | --- | --- | --- |
@@ -100,23 +100,20 @@ Example validation error (`GET /api/orders?pageSize=500`):
 | 6 | `GET /api/menu/catalog` | All **orderable** categories and items in one snapshot. | Menu page |
 | 7 | `GET /api/setup/catalog` | All categories and items **including archived**. | Settings pages |
 | 8 | `GET /api/items/:id` | One item + its category (archived too). | Item details page |
-| 9 | `GET /api/menu/categories` | Active categories with `availableCount`. | *legacy* |
-| 10 | `GET /api/menu/items` | Paged/filtered active items. | *legacy* |
-| 11 | `GET /api/setup/categories` | Categories, optionally with archived. | Item editor category picker |
-| 12 | `GET /api/setup/items` | Paged/filtered items for management. | *legacy* |
-| 13 | `POST /api/menu/resolve` | Current state of specific cart items. | Cart |
-| 14 | `POST /api/setup/categories` | Create category. | Settings |
-| 15 | `PATCH /api/setup/categories/:id` | Rename, reorder, archive, restore category. | Settings |
-| 16 | `POST /api/setup/items` | Create item. | Settings |
-| 17 | `PATCH /api/setup/items/:id` | Edit, price change, availability, archive, restore item. | Settings, item details |
-| 18 | `POST /api/checkout/quotes` | Price the cart on the server; returns a quote to confirm. | Cart → "Place order" |
-| 19 | `POST /api/orders` | Turn a quote into an order (idempotent). | Cart → "Place order" |
-| 20 | `GET /api/orders/by-request/:idempotencyKey` | Find the order created by a given checkout attempt. | Cart recovery after reload/timeout |
-| 21 | `GET /api/orders` | Paged order list, filter by status/item. | Orders page, item details "orders" tab |
-| 22 | `GET /api/orders/:id` | Full order with lines and status history. | Order details page |
-| 23 | `PATCH /api/orders/:id/status` | Move order to next status. | Orders page, order details |
+| 9 | `GET /api/setup/categories` | Categories, optionally with archived. | Item editor category picker |
+| 10 | `POST /api/menu/resolve` | Current state of specific cart items. | Cart |
+| 11 | `POST /api/setup/categories` | Create category. | Settings |
+| 12 | `PATCH /api/setup/categories/:id` | Rename, reorder, archive, restore category. | Settings |
+| 13 | `POST /api/setup/items` | Create item. | Settings |
+| 14 | `PATCH /api/setup/items/:id` | Edit, price change, availability, archive, restore item. | Settings, item details |
+| 15 | `POST /api/checkout/quotes` | Price the cart on the server; returns a quote to confirm. | Cart → "Place order" |
+| 16 | `POST /api/orders` | Turn a quote into an order (idempotent). | Cart → "Place order" |
+| 17 | `GET /api/orders/by-request/:idempotencyKey` | Find the order created by a given checkout attempt. | Cart recovery after reload/timeout |
+| 18 | `GET /api/orders` | Paged order list, filter by status/item. | Orders page, item details "orders" tab |
+| 19 | `GET /api/orders/:id` | Full order with lines and status history. | Order details page |
+| 20 | `PATCH /api/orders/:id/status` | Move order to next status. | Orders page, order details |
 
-Writes 14–17 emit a `menu.changed` socket event; writes 19 and 23 emit `orders.changed`. Nothing else emits events.
+Writes 11–14 emit a `menu.changed` socket event; writes 16 and 20 emit `orders.changed`. Nothing else emits events.
 
 ### 2.4 Health and sync
 
@@ -179,26 +176,14 @@ Item fields to know:
 }
 ```
 
-**9. `GET /api/menu/categories?search=`** *(legacy)* — active categories, each with `availableCount` (number of orderable items).
+**9. `GET /api/setup/categories?includeArchived=true|false`** — categories for management (default hides archived).
 
 ```jsonc
-{ "categories": [{ "id": "e5073782-…", "name": "Starters", "sortOrder": 0, "availableCount": 6, /* … */ }],
+{ "categories": [{ "id": "e5073782-…", "name": "Starters", "sortOrder": 0, /* … */ }],
   "menuRevision": 1, "menuUpdatedAt": "2026-01-01T00:00:00.000Z" }
 ```
 
-**10. `GET /api/menu/items?categoryId=&search=&page=&pageSize=`** *(legacy)* — paged active items. `search` is a case-insensitive substring of the name.
-
-```jsonc
-// GET /api/menu/items?categoryId=e5073782-…&page=1&pageSize=2
-{ "items": [ { "name": "Bread", /* … */ }, { "name": "Bruschetta", "priceMinor": 700, /* … */ } ],
-  "total": 6, "page": 1, "pageSize": 2, "menuRevision": 1, "menuUpdatedAt": "2026-01-01T00:00:00.000Z" }
-```
-
-**11. `GET /api/setup/categories?includeArchived=true|false`** — categories for management (default hides archived). Same shape as #9 without `availableCount`.
-
-**12. `GET /api/setup/items?categoryId=&search=&page=&pageSize=&includeArchived=`** *(legacy)* — like #10 but includes unavailable items and children of archived categories; `includeArchived=true` also includes archived items.
-
-**13. `POST /api/menu/resolve`** — the cart asks "what is the current state of these exact items?" regardless of what page the user is on. Read-only. 1–100 unique IDs; results keep request order.
+**10. `POST /api/menu/resolve`** — the cart asks "what is the current state of these exact items?" regardless of what page the user is on. Read-only. 1–100 unique IDs; results keep request order.
 
 Request:
 
@@ -227,7 +212,7 @@ Response:
 
 Every successful write increments the record's `revision` and the global `menuRevision` in the same transaction, returns the new `menuRevision`, and then broadcasts `menu.changed`. A write that changes nothing (e.g. restoring an already active record) returns `200` without bumping revisions or sending an event.
 
-**14. `POST /api/setup/categories`** → `201`
+**11. `POST /api/setup/categories`** → `201`
 
 ```json
 { "name": "Desserts", "sortOrder": 50 }
@@ -243,7 +228,7 @@ Every successful write increments the record's `revision` and the global `menuRe
 
 `name` is trimmed, 1–120 chars. `sortOrder` defaults to 0.
 
-**15. `PATCH /api/setup/categories/:id`** → `200`. Send `expectedRevision` plus at least one of `name`, `sortOrder`, `archived`.
+**12. `PATCH /api/setup/categories/:id`** → `200`. Send `expectedRevision` plus at least one of `name`, `sortOrder`, `archived`.
 
 ```json
 { "expectedRevision": 1, "name": "Sweet desserts" }
@@ -256,7 +241,7 @@ Every successful write increments the record's `revision` and the global `menuRe
 - `{"archived": true}` archives (hides the category and makes all its items unorderable). `{"archived": false}` restores; child items keep their own archive state.
 - Sending the old revision again gives `409 REVISION_CONFLICT` (example in [2.2](#22-error-format)).
 
-**16. `POST /api/setup/items`** → `201`
+**13. `POST /api/setup/items`** → `201`
 
 Fixed price:
 
@@ -283,7 +268,7 @@ Open price (omit `priceMinor`; response has `"priceMinor": null`):
 
 Rules: price 0–1,000,000 cents; description ≤ 2,000 chars; category must exist and not be archived (`422 CATEGORY_ARCHIVED`).
 
-**17. `PATCH /api/setup/items/:id`** → `200`. Send `expectedRevision` plus at least one change: `name`, `description` (`null` clears), `imageUrl` (`null` clears), `categoryId`, `available`, `archived`, or a pricing pair.
+**14. `PATCH /api/setup/items/:id`** → `200`. Send `expectedRevision` plus at least one change: `name`, `description` (`null` clears), `imageUrl` (`null` clears), `categoryId`, `available`, `archived`, or a pricing pair.
 
 | Goal | Body |
 | --- | --- |
@@ -320,7 +305,7 @@ sequenceDiagram
     A->>S: orders.changed (to every tab)
 ```
 
-**18. `POST /api/checkout/quotes`** → `201`. The cart sends what it *believes* (observed revision/price/name); the server recomputes everything from the database and reports differences in `changes`. Prices sent by the client are never trusted, except `openPriceMinor` for open-price items.
+**15. `POST /api/checkout/quotes`** → `201`. The cart sends what it *believes* (observed revision/price/name); the server recomputes everything from the database and reports differences in `changes`. Prices sent by the client are never trusted, except `openPriceMinor` for open-price items.
 
 Request (the cart saw Tiramisu at $6.50, but it is now $7.00):
 
@@ -370,7 +355,7 @@ Limits: 1–100 lines, quantity 1–99, comment ≤ 500 chars, discount is a fla
     "message": "Enter a price for this open-price item." }] }, "requestId": "…" } }
 ```
 
-**19. `POST /api/orders`** — header `Idempotency-Key: <uuid>` (required), body `{ "quoteId": "…" }` only.
+**16. `POST /api/orders`** — header `Idempotency-Key: <uuid>` (required), body `{ "quoteId": "…" }` only.
 
 | Situation | Result |
 | --- | --- |
@@ -414,11 +399,11 @@ Response (`201`, and identical body on a `200` replay):
 
 Order lines are **snapshots**: names, prices, and images are copied at order time, so later menu edits never change historical orders.
 
-**20. `GET /api/orders/by-request/:idempotencyKey`** — "did my checkout attempt go through?" Returns the same `{ order, ordersRevision }` as #19, or `404` if no order exists for that key yet. The browser uses this after a reload or network timeout before deciding to retry with the same key.
+**17. `GET /api/orders/by-request/:idempotencyKey`** — "did my checkout attempt go through?" Returns the same `{ order, ordersRevision }` as #16, or `404` if no order exists for that key yet. The browser uses this after a reload or network timeout before deciding to retry with the same key.
 
 ### 2.8 Orders
 
-**21. `GET /api/orders?status=&itemId=&page=&pageSize=`** — newest first. `status` filters by status; `itemId` returns orders containing that item (used on the item details page). Summaries have no lines, but include up to three `itemImages` for thumbnails.
+**18. `GET /api/orders?status=&itemId=&page=&pageSize=`** — newest first. `status` filters by status; `itemId` returns orders containing that item (used on the item details page). Summaries have no lines, but include up to three `itemImages` for thumbnails.
 
 ```json
 {
@@ -435,9 +420,9 @@ Order lines are **snapshots**: names, prices, and images are copied at order tim
 }
 ```
 
-**22. `GET /api/orders/:id`** — full order (same shape as #19) with all lines and `history` of status changes.
+**19. `GET /api/orders/:id`** — full order (same shape as #16) with all lines and `history` of status changes.
 
-**23. `PATCH /api/orders/:id/status`** — staff moves the order forward.
+**20. `PATCH /api/orders/:id/status`** — staff moves the order forward.
 
 ```json
 { "status": "preparing", "expectedRevision": 1 }
@@ -473,8 +458,8 @@ The single connection is owned by `RealtimeSync` ([`apps/frontend/src/app/core/r
 | Event | Sent by | When / why | Payload |
 | --- | --- | --- | --- |
 | `sync.state` | Server | Immediately after **every** connect and reconnect. Tells the tab the current revisions so it can detect anything it missed while disconnected. | `{ menuRevision, menuUpdatedAt, ordersRevision }` |
-| `menu.changed` | Server | After a menu write (#14–17) **commits**. Tells tabs the menu is now at a newer revision. | `{ eventId, menuRevision, entityType, entityId, change }` |
-| `orders.changed` | Server | After an order is created (#19) or its status changes (#23) **commits**. | `{ eventId, ordersRevision, orderId, orderRevision, change }` |
+| `menu.changed` | Server | After a menu write (#11–14) **commits**. Tells tabs the menu is now at a newer revision. | `{ eventId, menuRevision, entityType, entityId, change }` |
+| `orders.changed` | Server | After an order is created (#16) or its status changes (#20) **commits**. | `{ eventId, ordersRevision, orderId, orderRevision, change }` |
 | `connect` / `disconnect` / `connect_error` | Socket.IO itself | Built-in transport lifecycle. The app uses them for the connection indicator. | — |
 
 **`sync.state`**

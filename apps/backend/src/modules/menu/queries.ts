@@ -1,8 +1,5 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import {
-  categorySchema, menuItemSchema, type Category, type MenuItem, type MenuItemsQuery,
-  type ResolvedItem, type SetupItemsQuery
-} from '@restaurant-ordering/contracts';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { categorySchema, menuItemSchema, type Category, type MenuItem, type ResolvedItem } from '@restaurant-ordering/contracts';
 import type { DatabaseConnection } from '../../db/connection';
 import { appState, categories, menuItems } from '../../db/schema';
 
@@ -21,37 +18,12 @@ export function readMenuRevision(connection: DatabaseConnection) {
   return state.revision;
 }
 
-export function listCategories(connection: DatabaseConnection, includeArchived = false, search?: string) {
-  return connection.sqlite.transaction(() => {
-    const rows = connection.db.select().from(categories).where(includeArchived ? undefined : isNull(categories.archivedAt))
-      .orderBy(asc(categories.sortOrder), asc(categories.id)).all().map(toCategory);
-    const counts = search === undefined ? undefined : new Map(connection.db.select({ categoryId: menuItems.categoryId, count: sql<number>`count(*)` })
-      .from(menuItems).where(and(isNull(menuItems.archivedAt), eq(menuItems.available, true),
-        search ? sql`instr(lower(${menuItems.name}), lower(${search})) > 0` : undefined)).groupBy(menuItems.categoryId).all()
-      .map((row) => [row.categoryId, row.count]));
-    return { categories: rows.map((category) => counts ? { ...category, availableCount: counts.get(category.id) ?? 0 } : category),
-      menuRevision: readMenuRevision(connection), menuUpdatedAt: readSyncState(connection).menuUpdatedAt };
-  })();
-}
-
-export function listItems(connection: DatabaseConnection, query: MenuItemsQuery | SetupItemsQuery, setup = false) {
-  return connection.sqlite.transaction(() => {
-    const filter = and(
-      setup && 'includeArchived' in query && query.includeArchived ? undefined : isNull(menuItems.archivedAt),
-      setup ? undefined : isNull(categories.archivedAt),
-      query.categoryId ? eq(menuItems.categoryId, query.categoryId) : undefined,
-      // Literal substring search: '%' and '_' are ordinary characters, never wildcards.
-      query.search ? sql`instr(lower(${menuItems.name}), lower(${query.search})) > 0` : undefined
-    );
-    const total = connection.db.select({ count: sql<number>`count(*)` }).from(menuItems)
-      .innerJoin(categories, eq(menuItems.categoryId, categories.id)).where(filter).get()!.count;
-    // Avoid unsafe offsets even when a valid safe-integer page is far beyond the last page.
-    const items = query.page > Math.ceil(total / query.pageSize) ? [] : connection.db.select({ item: menuItems }).from(menuItems)
-      .innerJoin(categories, eq(menuItems.categoryId, categories.id)).where(filter)
-      .orderBy(asc(sql`(${menuItems.archivedAt} IS NOT NULL)`), desc(menuItems.available), asc(menuItems.name), asc(menuItems.id)).limit(query.pageSize).offset((query.page - 1) * query.pageSize)
-      .all().map(({ item }) => toItem(item));
-    return { items, total, page: query.page, pageSize: query.pageSize, menuRevision: readMenuRevision(connection), menuUpdatedAt: readSyncState(connection).menuUpdatedAt };
-  })();
+export function listCategories(connection: DatabaseConnection, includeArchived = false) {
+  return connection.sqlite.transaction(() => ({
+    categories: connection.db.select().from(categories).where(includeArchived ? undefined : isNull(categories.archivedAt))
+      .orderBy(asc(categories.sortOrder), asc(categories.id)).all().map(toCategory),
+    menuRevision: readMenuRevision(connection), menuUpdatedAt: readSyncState(connection).menuUpdatedAt
+  }))();
 }
 
 // Caller owns the read/write transaction. Checkout can use the same joined rows and

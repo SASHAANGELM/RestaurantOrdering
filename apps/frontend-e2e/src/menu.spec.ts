@@ -96,7 +96,7 @@ test('menu filters locally by search/category and bounds rendered pages and reta
   await page.getByRole('option', { name: '10', exact: true }).click(); await expect(menu.getByRole('listitem')).toHaveCount(10);
   await pages.getByRole('button', { name: 'Next page' }).click(); await expect(menu.getByRole('listitem')).toHaveCount(3);
   const searches: URL[] = [];
-  page.on('request', (r) => { if (r.url().includes('/api/menu/items?')) searches.push(new URL(r.url())); });
+  page.on('request', (r) => { if (r.url().includes('/api/menu/catalog')) searches.push(new URL(r.url())); });
   await search(page, `${name} F`); await search(page, `${name} Fi`); await search(page, fixed.name);
   await expect(menu.getByRole('listitem')).toHaveCount(1);
   expect(searches).toEqual([]);

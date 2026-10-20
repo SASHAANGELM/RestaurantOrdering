@@ -18,12 +18,12 @@ describe('HTTP client boundary', () => {
   afterEach(() => { http.verify(); vi.useRealTimers(); });
 
   it('encodes bounded query values at the frontend origin', async () => {
-    const result = firstValueFrom(api.items({ page: 2, pageSize: 25, search: 'Soup & rice' }));
-    const request = http.expectOne((request) => request.url === '/api/menu/items');
-    expect(request.request.params.get('search')).toBe('Soup & rice');
+    const result = firstValueFrom(api.orders({ page: 2, pageSize: 25, status: 'ready' }));
+    const request = http.expectOne((request) => request.url === '/api/orders');
+    expect(request.request.params.get('status')).toBe('ready');
     expect(request.request.params.get('pageSize')).toBe('25');
-    request.flush({ items: [], page: 2, pageSize: 25, total: 0, menuRevision: 3 });
-    expect(await result).toMatchObject({ menuRevision: 3 });
+    request.flush({ orders: [], page: 2, pageSize: 25, total: 0, ordersRevision: 3 });
+    expect(await result).toMatchObject({ ordersRevision: 3 });
   });
 
   it('validates responses before exposing them to stores', async () => {
@@ -34,11 +34,11 @@ describe('HTTP client boundary', () => {
   });
 
   it('omits optional cleared filters rather than serializing undefined query values', async () => {
-    const result = firstValueFrom(api.setupItems({ page: 1, pageSize: 10, includeArchived: false, categoryId: undefined, search: undefined }));
-    const request = http.expectOne('/api/setup/items?page=1&pageSize=10&includeArchived=false');
-    expect(request.request.params.has('categoryId')).toBe(false);
-    expect(request.request.params.has('search')).toBe(false);
-    request.flush({ items: [], page: 1, pageSize: 10, total: 0, menuRevision: 0 });
+    const result = firstValueFrom(api.orders({ page: 1, pageSize: 10, status: undefined, itemId: undefined }));
+    const request = http.expectOne('/api/orders?page=1&pageSize=10');
+    expect(request.request.params.has('status')).toBe(false);
+    expect(request.request.params.has('itemId')).toBe(false);
+    request.flush({ orders: [], page: 1, pageSize: 10, total: 0, ordersRevision: 0 });
     await result;
   });
 
@@ -66,8 +66,8 @@ describe('HTTP client boundary', () => {
   });
 
   it('cancels HTTP when unsubscribed and times out hanging requests', async () => {
-    const cancelled = api.categories().subscribe();
-    const request = http.expectOne('/api/menu/categories');
+    const cancelled = api.catalog().subscribe();
+    const request = http.expectOne('/api/menu/catalog');
     cancelled.unsubscribe();
     expect(request.cancelled).toBe(true);
     vi.useFakeTimers();
@@ -81,7 +81,7 @@ describe('HTTP client boundary', () => {
 
   it('rejects malformed requests without sending HTTP', async () => {
     await expect(firstValueFrom(api.order('invalid'))).rejects.toMatchObject({ kind: 'invalid-request' });
-    await expect(firstValueFrom(api.items({ page: 1, pageSize: 101 }))).rejects.toMatchObject({ kind: 'invalid-request' });
+    await expect(firstValueFrom(api.orders({ page: 1, pageSize: 101 }))).rejects.toMatchObject({ kind: 'invalid-request' });
     http.expectNone(() => true);
   });
 
